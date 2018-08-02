@@ -7,6 +7,7 @@ contract bcmc
     	string   url;
         uint     price;
         uint     duration;
+
 	    uint     rating;
 	    uint     viewers;
     }
@@ -47,8 +48,15 @@ contract bcmc
         owner = msg.sender;
     }
     
-    function registerMovie(string _url, uint _price, uint _duration) public {
-    	Movie memory movie = Movie({url:_url, price:_price, duration:_duration, rating:0, viewers:0});
+    function registerMovie(
+    		string _url,
+    		uint _price, 
+    		uint _duration) public {
+    	Movie memory movie = Movie({
+    			url:_url,
+    			price:_price, 
+    			duration:_duration, 
+    			rating:0, viewers:0});
 	    movies[msg.sender] = movie;	    
     }
 
@@ -63,13 +71,11 @@ contract bcmc
     }
 
     function changePrice(address movie_addr, uint _price) public {
-	Movie movie = movies[movie_addr];
-        movie.price = _price;
+        movies[movie_addr].price = _price;
     }
 
     function getPrice(address movie_addr) public  constant returns (uint _price) {
-	Movie movie = movies[movie_addr];
-        _price = movie.price;
+        _price = movies[movie_addr].price;
     }
 
     function openFunding(address movie_addr, uint _funding_start_time, uint _funding_end_time, uint _movie_start_time) public  {
@@ -80,44 +86,41 @@ contract bcmc
     
     function closeFunding(address movie_addr) public  {
     
-	    Sponsor sponsor = sponsors[movie_addr];
+	    Sponsor storage sponsor = sponsors[movie_addr];
         sponsor.open = false;
     }
     
     function addSponsor(address movie_addr) public  {
-	    Sponsor sponsor = sponsors[movie_addr];
+	    Sponsor storage sponsor = sponsors[movie_addr];
         sponsor.adverts.push(msg.sender);
     }
 
 
     function getMovieUrl(address movie_addr) public constant returns(string url) {
-        Player storage player = players[msg.sender];
-	    Movie movie = movies[movie_addr];
-	    url = movie.url;
+	    url = movies[movie_addr].url;
     }
 
-
+    
     function getNextAdvertUrl(address movie_addr) public constant returns (string _url) {
         Player storage player = players[msg.sender];
         Sponsor storage sponsor = sponsors[movie_addr];
         
-        if(sponsor.adverts.length == 0) throw;
+        if(sponsor.adverts.length == 0) revert();
         
        uint indx_advert = (player.indx_advert + 1) % sponsor.adverts.length;
         address advert_address= sponsor.adverts[indx_advert];
-        Advert advert = adverts[advert_address];
+        Advert storage advert = adverts[advert_address];
         _url = advert.url;
     }
 
     function setRating(address movie_addr, uint8 _rating) public  {
-        Movie movie = movies[movie_addr];
+        Movie storage movie = movies[movie_addr];
         movie.rating = (movie.rating * movie.viewers +  _rating) / (movie.viewers + 1);
 	    movie.viewers += 1;
     }
     
     function getRating(address movie_addr) public  constant returns (uint rating) {
-        Movie movie = movies[movie_addr];        
-	    rating = movie.rating;
+	    rating = movies[movie_addr].rating;
     }
     
 }

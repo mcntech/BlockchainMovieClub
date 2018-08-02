@@ -42,7 +42,7 @@ class MovieMaker extends Component {
 
  handleChangeMovieUrl(event)
  {
-	 
+	 this.setState({MovieStorageUrl: event.target.value}) 
  }
  
  handleChangeMoviePrice(event)

@@ -12,7 +12,7 @@ import coder from 'web3-eth-abi';
 const EthereumTx = require('ethereumjs-tx');
 const privateKey = Buffer.from('a26ecf489e39d27a26cc2b1ba7cd8a6ef0256b3e8038fecd07f2a7d0d8983c82', 'hex'); //test key
 const publicKey = Buffer.from('47160d1b68c4c21974c9fb96428d8213f48418c9', 'hex');
-const contractAddress = Buffer.from('cf4e8fe7eb528aee9ec9a16a4fce87069bf8a253', 'hex');
+const contractAddress = Buffer.from('cfeb869f69431e42cdb54a4f4f105c19c080a601', 'hex');
 		
 <link rel="stylesheet" href="https://video-react.github.io/assets/video-react.css" />
 

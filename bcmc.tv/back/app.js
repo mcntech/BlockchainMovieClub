@@ -30,6 +30,17 @@ io.on('connection', function(socket) {
         	socket.emit('eth_call_result',result);
         });
     });
+    
+    socket.on('eth_call_request', function(data){
+        console.log("eth_call_request:" + data);
+        var request = JSON.parse(data);
+        eth.call(request.calldata).then(function(_result){
+        	var response = {cmd: request.cmd, result : _result} 
+        
+        	console.log("eth_call_response:result=" + JSON.stringify(response));
+        	socket.emit('eth_call_response',JSON.stringify(response));
+        });
+    });
 });
 
 console.log("Listening on 8090");

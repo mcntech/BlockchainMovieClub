@@ -24,6 +24,11 @@ class Ethlite
 		  this.cb(this.clientObj, 'eth_call_result', data)
 	  });
 
+	  this.socket.on('eth_call_response', data => { 
+		  console.log("eth_call_response:" + data); 
+		  this.cb(this.clientObj, 'eth_call_response', data)
+	  });
+
 	}
 	/*
 	setMovieListUpdation()
@@ -55,5 +60,13 @@ class Ethlite
 	  console.log("sendEthCall=:" + data);
 	  this.socket.emit("eth_call", data);
 	}
+	
+	sendEthCallRequest(data)
+	{
+	  console.log("sendEthCallRequest=:" + data);
+	  this.socket.emit("eth_call_request", data);
+	}
+	
+	sendEthCallRequest
 }
 export  default Ethlite ;

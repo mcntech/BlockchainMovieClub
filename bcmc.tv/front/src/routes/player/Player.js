@@ -71,14 +71,22 @@ const mapStateToProps = (state = {}) => {
     return {...state};
 };
 
+function findUrllForAccount(items, account) {
+	for(var i = 0; i < items.size; i++) {
+      if(items.get(i).item.account == account)
+        return items.get(i).item.url;
+    }
+}
 
+
+const Context = React.createContext();
 class Player extends Component {
 	constructor(props) {
 	    super(props);
 	    this.state = {
     		movieAddr: 'Select Movie Address', 
     		playerAccount: publicKey.toString('hex'), 
-    		playerSource: "https://media.w3.org/2010/05/sintel/trailer_hd.mp4"
+    		playerSource: "https://media.w3.org/2010/05/sintel/trailer_hd.mp4",
 	    };
 	    
 	    this.handleChangeMovieAddr = this.handleChangeMovieAddr.bind(this);
@@ -107,6 +115,31 @@ class Player extends Component {
 	       		const {dispatch} = obj.props;
 	       		var data = {item : itemData, itemId: itemData.account}
 		    	dispatch(AddItem(data));
+	    	} else if (event == 'eth_call_response') {
+	    		var resp = JSON.parse(data);
+	    		var result = resp.result;
+	    		var cmd = resp.cmd;
+	    		var outputs = coder.decodeParameters(bcmc.abi[9]["outputs"], result);
+	    		var movieStr = outputs[0];
+	    		console.log(movieStr)
+	    		var movieObj = JSON.parse(movieStr);
+	    		var movieUrl = movieObj.sources[0];
+	    		var thumbUrl =  movieUrl.substr(0,movieUrl.lastIndexOf('/') + 1).concat(movieObj.thumb);
+	    		
+	    		obj.setState({playerSource:movieUrl})
+	       		console.log("url:" + movieUrl);
+	       		
+	       		var itemData = {
+	       			"category": "Drama",
+	                "title": movieObj.title,
+	                "text": movieObj.description,
+	                "image":  thumbUrl,
+	                "url"  : movieUrl,
+	                "account":'40f8bf6a479f320ead074411a4b0e7944ea8c9c1'
+                }
+	       		const {dispatch} = obj.props;
+	       		var data = {item : itemData, itemId: itemData.account}
+		    	dispatch(AddItem(data));
 	    	}
 	    });
     }
@@ -126,6 +159,8 @@ class Player extends Component {
 	    console.dir(items);
     }
 
+
+
   handleChangePlayerAccount(event) {
     this.setState({playerAccount: event.target.playerAccount});
   }
@@ -133,7 +168,7 @@ class Player extends Component {
   handleChangeMovieAddr(e) {
 
   }
-
+/*
   handleSubmitMovieAddr(event) {
 	  event.preventDefault(); 
 	  var movieAddr = Buffer.from('ffcf8fdee72ac11b5c542428b35eef5769c409f0', 'hex');
@@ -150,6 +185,25 @@ class Player extends Component {
 			  data: codedCall,
 		}
 		this.ethlite.sendEthCall(JSON.stringify(callObj))
+  }
+*/
+  handleSubmitMovieAddr(event) {
+	  event.preventDefault(); 
+	  var movieAddr = Buffer.from('ffcf8fdee72ac11b5c542428b35eef5769c409f0', 'hex');
+		console.log(bcmc.abi[9]);
+		var codedCall = coder.encodeFunctionCall(bcmc.abi[9], [ '0x' + movieAddr.toString('hex')]);
+		console.log("codedCall:" + codedCall);
+		
+		const callObj = {
+			  from:'0x' + publicKey.toString('hex'), 
+			  gasPrice: '0x09184e72a000', 
+			  gasLimit: '0x271000',
+			  to: '0x' + contractAddress.toString('hex'), 
+			  value: '0x00', 
+			  data: codedCall,
+		}
+		var request = {cmd:"getMovie", calldata: callObj}
+		this.ethlite.sendEthCallRequest(JSON.stringify(request))
   }
 
   handleSubmitPlayerAccount(event) {
@@ -184,6 +238,12 @@ class Player extends Component {
 	  console.dir("itemId=" + itemId)
   }
 
+  onMovieSelection(account){
+	var url = findUrllForAccount(this.props.items, account);
+		  console.log("onMovieSelection" + account + " url=" + url);
+	      this.setState({movieAccount: account});
+  }
+	
   render() {
 	
 
@@ -205,6 +265,7 @@ class Player extends Component {
 
 	
 	return (
+	 <Context.Provider value={this}>
 	  <div className={s.root}>
 	    <div className={s.container}>
 		  <div className="Player">
@@ -260,13 +321,14 @@ class Player extends Component {
 	   </div>
 	   <br/>
 	   <div>
-	        <VideoPlayer playsInline fluid={false}  width={320} height={180}>
-			   <source src={this.state.playerSource} />
+	        <VideoPlayer playsInline fluid={false}  width={320} height={180} src={this.state.playerSource}>
+			   {/*=<source src={this.state.playerSource} />*/}
 			   </VideoPlayer>
 	   </div>
 	   
 	</div>
    </div>
+   </Context.Provider>
    );
 	
   }
@@ -279,12 +341,14 @@ class Button extends React.Component {
 	render() {
 		const {itemId} = this.props;
 	    return (
-	      <button className="button button-primary" onClick={() => this.fireClick(itemId)}>
+	     <Context.Consumer>
+	     {(context) => <button className="button button-primary" onClick={() => {this.fireClick(itemId); context.onMovieSelection(itemId)}}>
 	        <i className="fa fa-chevron-right"></i> Select Movie
-	      </button>
-	    )
-	  }
-	}
+	      </button>}
+	     </Context.Consumer>
+	   )
+   }
+}
 
 class CardHeader extends React.Component {
 	  render() {
