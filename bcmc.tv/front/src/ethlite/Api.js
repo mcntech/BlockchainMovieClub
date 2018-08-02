@@ -1,5 +1,8 @@
 import openSocket from 'socket.io-client';
 
+//import {loadInitialDataSocket,addNewItemSocket,remItemCompleteSocket
+//	   ,AddItem,Remtem} from './actions/action'
+	   
 class Ethlite
 {
 	constructor(_clientObj, _cb) {
@@ -22,22 +25,35 @@ class Ethlite
 	  });
 
 	}
- sendEthRequest(data)
-{
-  console.log("sendEthRequest=:" + data);
-  this.socket.emit("eth_rawtransaction", data);
-}
+	/*
+	setMovieListUpdation()
+	{
+	   socket.on('movieAdded',(res)=>{
+		   console.log(res)
+		   dispatch(AddItem(res))
+	   })
 
-sendEthGetAccount(account)
-{
-  console.log("sendEthGetAccount=:" + account);
-  this.socket.emit("eth_get_account", account);
-}
+	   socket.on('movieDeleted',(res)=>{
+		   console.log(res)
+		   dispatch(RemItem(res))
+	   })
+	}*/
+    sendEthRequest(data)
+	{
+	  console.log("sendEthRequest=:" + data);
+	  this.socket.emit("eth_rawtransaction", data);
+	}
 
-sendEthCall(data)
-{
-  console.log("sendEthCall=:" + data);
-  this.socket.emit("eth_call", data);
-}
+	sendEthGetAccount(account)
+	{
+	  console.log("sendEthGetAccount=:" + account);
+	  this.socket.emit("eth_get_account", account);
+	}
+
+	sendEthCall(data)
+	{
+	  console.log("sendEthCall=:" + data);
+	  this.socket.emit("eth_call", data);
+	}
 }
 export  default Ethlite ;

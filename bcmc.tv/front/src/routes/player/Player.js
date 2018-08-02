@@ -8,6 +8,7 @@ import s from "./Player.css";
 import Ethlite from '../../ethlite/Api';
 import bcmc from '../../contracts/bcmc.json';
 import coder from 'web3-eth-abi';
+import {connect} from 'react-redux'
 
 const EthereumTx = require('ethereumjs-tx');
 const privateKey = Buffer.from('4f3edf983ac636a65a842ce7c78d9aa706d3b113bce9c46f30d7d21715b23b1d', 'hex'); //test key
@@ -17,60 +18,74 @@ const contractAddress = Buffer.from('cfeb869f69431e42cdb54a4f4f105c19c080a601', 
 //<link rel="stylesheet" href="https://video-react.github.io/assets/video-react.css" />
 import "../../../node_modules/video-react/dist/video-react.css";
 
+import {loadInitialDataSocket,addNewItemSocket,remItemCompleteSocket
+	   ,AddItem,Remtem,itemsIsLoading, itemsFetchDataSuccess} from './actions/action'
 
-const PostsData = [
+const TestCards = [
                    {
                      "category": "News",
                      "title": "CNN Acquire BEME",
                      "text": "CNN purchased Casey Neistat's Beme app for $25million.",
-                     "image": "https://source.unsplash.com/user/erondu/600x400"
+                     "image": "https://source.unsplash.com/user/erondu/600x400",
+                     "account":'10f8bf6a479f320ead074411a4b0e7944ea8c9c1'
                    },
                    {
                      "category": "Travel",
                      "title": "Nomad Lifestyle",
                      "text": "Learn our tips and tricks on living a nomadic lifestyle",
-                     "image": "https://source.unsplash.com/user/_vickyreyes/600x400"
+                     "image": "https://source.unsplash.com/user/_vickyreyes/600x400",
+                     "account":'20f8bf6a479f320ead074411a4b0e7944ea8c9c1'
                    },
                    {
                      "category": "Development",
                      "title": "React and the WP-API",
                      "text": "The first ever decoupled starter theme for React & the WP-API",
-                     "image": "https://source.unsplash.com/user/ilyapavlov/600x400"
+                     "image": "https://source.unsplash.com/user/ilyapavlov/600x400",
+                     "account":'30f8bf6a479f320ead074411a4b0e7944ea8c9c1'
                    },
                    {
                      "category": "News",
                      "title": "CNN Acquire BEME",
                      "text": "CNN purchased Casey Neistat's Beme app for $25million.",
-                     "image": "https://source.unsplash.com/user/erondu/600x400"
+                     "image": "https://source.unsplash.com/user/erondu/600x400",
+                     "account":'40f8bf6a479f320ead074411a4b0e7944ea8c9c1'
                    },
                    {
                      "category": "Travel",
                      "title": "Nomad Lifestyle",
                      "text": "Learn our tips and tricks on living a nomadic lifestyle",
-                     "image": "https://source.unsplash.com/user/_vickyreyes/600x400"
+                     "image": "https://source.unsplash.com/user/_vickyreyes/600x400",
+                     "account":'50f8bf6a479f320ead074411a4b0e7944ea8c9c1'
                    },
                    {
                      "category": "Development",
                      "title": "React and the WP-API",
                      "text": "The first ever decoupled starter theme for React & the WP-API",
-                     "image": "https://source.unsplash.com/user/ilyapavlov/600x400"
+                     "image": "https://source.unsplash.com/user/ilyapavlov/600x400",
+                     "account":'90f8bf6a479f320ead074411a4b0e7944ea8c9c1'
                    }
                  ]
 
 
+const mapStateToProps = (state = {}) => {
+    return {...state};
+};
+
+
 class Player extends Component {
- constructor(props) {
-    super(props);
-    this.state = {movieAddr: 'Select Movie Address', 
+	constructor(props) {
+	    super(props);
+	    this.state = {
+    		movieAddr: 'Select Movie Address', 
     		playerAccount: publicKey.toString('hex'), 
-    		playerSource: "https://media.w3.org/2010/05/sintel/trailer_hd.mp4",
-    		posts: {} };
-
-
+    		playerSource: "https://media.w3.org/2010/05/sintel/trailer_hd.mp4"
+	    };
+	    
 	    this.handleChangeMovieAddr = this.handleChangeMovieAddr.bind(this);
 	    this.handleSubmitMovieAddr = this.handleSubmitMovieAddr.bind(this);
 	    this.handleChangePlayerAccount = this.handleChangePlayerAccount.bind(this);
 	    this.handleSubmitPlayerAccount = this.handleSubmitPlayerAccount.bind(this);
+	    this.handleSubmitMovieSelection = this.handleSubmitMovieSelection.bind(this);
 	    
 	    this.ethlite = new Ethlite(this, function(obj, event, data)  {
 	    	console.log("callback event=:" + event +" data=" + data);
@@ -81,14 +96,34 @@ class Player extends Component {
 	       		var url = coder.decodeParameters(bcmc.abi[9]["outputs"], data);
 	       		obj.setState({playerSource: url[0]})
 	       		console.log("url:" + url[0]);
+	       		var itemData = {
+	       			"category": "Drama",
+	                "title": "Random Movie",
+	                "text": "First Blcochain Movie Screening. Coming soon",
+	                "image":  "https://source.unsplash.com/user/erondu/600x400",
+	                "url"  : url[0].toString(),
+	                "account":'40f8bf6a479f320ead074411a4b0e7944ea8c9c1'
+                }
+	       		const {dispatch} = obj.props;
+	       		var data = {item : itemData, itemId: itemData.account}
+		    	dispatch(AddItem(data));
 	    	}
 	    });
     }
 
     componentWillMount() {
-	     this.setState({
-	       posts: PostsData
-	     });
+	     const {dispatch,items} = this.props;
+	     
+	     dispatch(itemsIsLoading(true));
+	     
+	  {/*   
+	     for (var i of TestCards) {
+	    	 var data = {item : i, itemId: i.account}
+	    	 dispatch(AddItem(data));
+	     }
+	     */}
+	    dispatch(itemsIsLoading(false));
+	    console.dir(items);
     }
 
   handleChangePlayerAccount(event) {
@@ -145,10 +180,30 @@ class Player extends Component {
 	console.log('0x' + serializedTx.toString('hex'));
   }
 
-  
+  handleSubmitMovieSelection(itemId) {
+	  console.dir("itemId=" + itemId)
+  }
 
   render() {
+	
 
+	const {dispatch,items,isLoading,hasErrored} = this.props
+	//console.dir(this.props);
+	//console.dir(items);
+	var i;
+	var tmp = [];
+	for ( i=0; i < items.size; i++){ tmp.push(items.get(i).item);}
+
+	
+	if (hasErrored) {
+	      return <p>Sorry! There was an error loading the items</p>;
+	}
+	
+	if (isLoading) {
+	      return <p>Loading…</p>;
+	}
+
+	
 	return (
 	  <div className={s.root}>
 	    <div className={s.container}>
@@ -178,15 +233,10 @@ class Player extends Component {
 	  </div>
 
 	  <div className="app-card-list" id="app-card-list">
-      {
-        Object
-        .keys(this.state.posts)
-        .map(key => <Card key={key} index={key} details={this.state.posts[key]}/>)
-      }
-      </div>
-	  
-	  
-	  
+	    {
+	    	tmp.map((item, key) => <Card key={key} index={key} details={item} />)
+	    }
+	  </div>
       <div className="Player-item">
 		  <form onSubmit={this.handleSubmitMovieAddr}>
 		  
@@ -223,9 +273,13 @@ class Player extends Component {
 }
 
 class Button extends React.Component {
-	  render() {
+	fireClick(itemId) {
+		console.dir("Im an alert " + itemId);
+	}  
+	render() {
+		const {itemId} = this.props;
 	    return (
-	      <button className="button button-primary">
+	      <button className="button button-primary" onClick={() => this.fireClick(itemId)}>
 	        <i className="fa fa-chevron-right"></i> Select Movie
 	      </button>
 	    )
@@ -251,11 +305,11 @@ class CardHeader extends React.Component {
 
 	class CardBody extends React.Component {
 	  render() {
-	    return (
+		  return (
 	      <div className="card-body">
 	        <h2>{this.props.title}</h2>
 	        <p className="body-content"> {this.props.text}</p>
-	        <Button />
+	        <Button itemId={this.props.itemId}/>
 	      </div>
 	    )
 	  }
@@ -263,14 +317,15 @@ class CardHeader extends React.Component {
 
 class Card extends React.Component {
 	  render() {
-	    return (
+		return (
 	      <article className="card">
-	        <CardHeader category={this.props.details.category} image={this.props.details.image}/>
-	        <CardBody title={this.props.details.title} text={this.props.details.text}/>
+	        <CardHeader category={this.props.details.category} image={this.props.details.image} />
+	        <CardBody title={this.props.details.title} text={this.props.details.text}  itemId={this.props.details.account}/>
 	      </article>
 	    )
 	  }
 	}
 
-export default withStyles(s)(Player);
-
+// export connect(mapStateToProps)(Player);
+//export default withStyles(s)(Player);
+export default connect(mapStateToProps)(withStyles(s)(Player));
