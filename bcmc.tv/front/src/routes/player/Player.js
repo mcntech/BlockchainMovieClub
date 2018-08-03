@@ -78,13 +78,22 @@ function findUrllForAccount(items, account) {
     }
 }
 
+function findAbiIdForFunction(abi, fnName) {
+	for(var i = 0; i < abi.length; i++) {
+      if(abi[i].type == "function" && abi[i].name == fnName)
+        return i;
+    }
+	return -1;
+}
 
 const Context = React.createContext();
 class Player extends Component {
 	constructor(props) {
 	    super(props);
 	    this.state = {
-    		movieAddr: 'Select Movie Address', 
+	    	totalMovies:0,
+	    	movieReqIndex:0,
+	    	movieAddr: 'Select Movie Address', 
     		playerAccount: publicKey.toString('hex'), 
     		playerSource: "https://media.w3.org/2010/05/sintel/trailer_hd.mp4",
 	    };
@@ -94,52 +103,48 @@ class Player extends Component {
 	    this.handleChangePlayerAccount = this.handleChangePlayerAccount.bind(this);
 	    this.handleSubmitPlayerAccount = this.handleSubmitPlayerAccount.bind(this);
 	    this.handleSubmitMovieSelection = this.handleSubmitMovieSelection.bind(this);
+	    this.getTotalMovies = this.getTotalMovies.bind(this);
+	    this.getMovie = this.getMovie.bind(this);
 	    
 	    this.ethlite = new Ethlite(this, function(obj, event, data)  {
 	    	console.log("callback event=:" + event +" data=" + data);
 	    	if(event == 'account_nonce') {
 	    		obj.handleSubmitPlayerAccountDeferred(data);
 	    	}
-	       	if(event == 'eth_call_result') {
-	       		var url = coder.decodeParameters(bcmc.abi[9]["outputs"], data);
-	       		obj.setState({playerSource: url[0]})
-	       		console.log("url:" + url[0]);
-	       		var itemData = {
-	       			"category": "Drama",
-	                "title": "Random Movie",
-	                "text": "First Blcochain Movie Screening. Coming soon",
-	                "image":  "https://source.unsplash.com/user/erondu/600x400",
-	                "url"  : url[0].toString(),
-	                "account":'40f8bf6a479f320ead074411a4b0e7944ea8c9c1'
-                }
-	       		const {dispatch} = obj.props;
-	       		var data = {item : itemData, itemId: itemData.account}
-		    	dispatch(AddItem(data));
-	    	} else if (event == 'eth_call_response') {
+	       	if (event == 'eth_call_response') {
 	    		var resp = JSON.parse(data);
 	    		var result = resp.result;
 	    		var cmd = resp.cmd;
-	    		var outputs = coder.decodeParameters(bcmc.abi[9]["outputs"], result);
-	    		var movieStr = outputs[0];
-	    		console.log(movieStr)
-	    		var movieObj = JSON.parse(movieStr);
-	    		var movieUrl = movieObj.sources[0];
-	    		var thumbUrl =  movieUrl.substr(0,movieUrl.lastIndexOf('/') + 1).concat(movieObj.thumb);
-	    		
-	    		obj.setState({playerSource:movieUrl})
-	       		console.log("url:" + movieUrl);
-	       		
-	       		var itemData = {
-	       			"category": "Drama",
-	                "title": movieObj.title,
-	                "text": movieObj.description,
-	                "image":  thumbUrl,
-	                "url"  : movieUrl,
-	                "account":'40f8bf6a479f320ead074411a4b0e7944ea8c9c1'
-                }
-	       		const {dispatch} = obj.props;
-	       		var data = {item : itemData, itemId: itemData.account}
-		    	dispatch(AddItem(data));
+	    		if(cmd == 'getMovie') {
+	    			var id = findAbiIdForFunction(bcmc.abi, "getMovieUrl");
+	    			var index = obj.state.movieReqIndex;
+	    			var outputs = coder.decodeParameters(bcmc.abi[id]["outputs"], result);
+		    		var movieStr = outputs[0];
+		    		console.log(movieStr)
+		    		var movieObj = JSON.parse(movieStr);
+		    		var movieUrl = movieObj.sources[0];
+		    		var thumbUrl =  movieUrl.substr(0,movieUrl.lastIndexOf('/') + 1).concat(movieObj.thumb);
+		    		
+		    		obj.setState({playerSource:movieUrl})
+		       		console.log("url:" + movieUrl);
+		    		
+		       		var itemData = {
+		       			"category": "Drama",
+		                "title": movieObj.title,
+		                "text": movieObj.description,
+		                "image":  thumbUrl,
+		                "url"  : movieUrl,
+		                "account":index
+	                }
+		       		const {dispatch} = obj.props;
+		       		var data = {item : itemData, itemId: itemData.account}
+			    	dispatch(AddItem(data));
+		       		obj.setState({movieReqIndex:index+1}); 
+	    		} else if (cmd == 'totalMovies'){
+	    			var id = findAbiIdForFunction(bcmc.abi, "totalMovies");
+	    			var outputs = coder.decodeParameters(bcmc.abi[id]["outputs"], result);
+	    			obj.setState({totalMovies: parseInt(outputs[0], 16)});
+	    		}
 	    	}
 	    });
     }
@@ -148,6 +153,7 @@ class Player extends Component {
 	     const {dispatch,items} = this.props;
 	     
 	     dispatch(itemsIsLoading(true));
+	     this.getTotalMovies();
 	     
 	  {/*   
 	     for (var i of TestCards) {
@@ -187,11 +193,34 @@ class Player extends Component {
 		this.ethlite.sendEthCall(JSON.stringify(callObj))
   }
 */
-  handleSubmitMovieAddr(event) {
-	  event.preventDefault(); 
-	  var movieAddr = Buffer.from('ffcf8fdee72ac11b5c542428b35eef5769c409f0', 'hex');
-		console.log(bcmc.abi[9]);
-		var codedCall = coder.encodeFunctionCall(bcmc.abi[9], [ '0x' + movieAddr.toString('hex')]);
+
+  
+  getTotalMovies() {
+	  //event.preventDefault(); 
+
+	    var id = findAbiIdForFunction(bcmc.abi, "totalMovies");
+	    console.log(bcmc.abi[id]);
+		var codedCall = coder.encodeFunctionCall(bcmc.abi[id]);
+		console.log("codedCall:" + codedCall);
+		
+		const callObj = {
+			  from:'0x' + publicKey.toString('hex'), 
+			  gasPrice: '0x09184e72a000', 
+			  gasLimit: '0x271000',
+			  to: '0x' + contractAddress.toString('hex'), 
+			  value: '0x00', 
+			  data: codedCall,
+		}
+		var request = {cmd:"totalMovies", calldata: callObj}
+		this.ethlite.sendEthCallRequest(JSON.stringify(request))
+  }
+
+ getMovie(index)
+ { 
+	  var id = findAbiIdForFunction(bcmc.abi, "getMovieUrl");
+	  var movieIndex = index;
+		console.log(bcmc.abi[id]);
+		var codedCall = coder.encodeFunctionCall(bcmc.abi[id], [movieIndex.toString(16)]);
 		console.log("codedCall:" + codedCall);
 		
 		const callObj = {
@@ -204,6 +233,12 @@ class Player extends Component {
 		}
 		var request = {cmd:"getMovie", calldata: callObj}
 		this.ethlite.sendEthCallRequest(JSON.stringify(request))
+  }
+  handleSubmitMovieAddr(event) {
+	  event.preventDefault(); 
+	  for (var i=0; i < this.state.totalMovies; i++){
+		  this.getMovie(i);
+	  }
   }
 
   handleSubmitPlayerAccount(event) {
@@ -242,6 +277,7 @@ class Player extends Component {
 	var url = findUrllForAccount(this.props.items, account);
 		  console.log("onMovieSelection" + account + " url=" + url);
 	      this.setState({movieAccount: account});
+	      this.setState({playerSource:url});
   }
 	
   render() {
@@ -321,9 +357,8 @@ class Player extends Component {
 	   </div>
 	   <br/>
 	   <div>
-	        <VideoPlayer playsInline fluid={false}  width={320} height={180} src={this.state.playerSource}>
-			   {/*=<source src={this.state.playerSource} />*/}
-			   </VideoPlayer>
+	        {/*<VideoPlayer playsInline fluid={false}  width={320} height={180} src={this.state.playerSource} />*/}
+			   <Video src={this.state.playerSource}/>
 	   </div>
 	   
 	</div>
@@ -390,6 +425,41 @@ class Card extends React.Component {
 	  }
 	}
 
+
+class Video extends React.Component {
+	  playVideo() {
+	    // You can use the play method as normal on your video ref
+	    this.refs.vidRef.play();
+	  }
+	  
+	  pauseVideo() {
+	    // Pause as well
+	    this.refs.vidRef.pause();
+	  }
+	  
+	  // You can pass your function references to your child components as props (here passing down to the Buttons component)
+	  render() {
+		  var src = this.props.src;
+		return(
+	      <div>
+	        <video ref="vidRef" width="380" height="240" src={src} type="video/mp4" controls></video>
+	        <Buttons playVideo={this.playVideo.bind(this)} pauseVideo={this.pauseVideo.bind(this)} />
+	      </div>
+	    );
+	  }
+	}
+
+	// You can then call the parent play/pause methods from your child component.
+	class Buttons extends React.Component {
+	  render(){
+	    return(
+	      <div>
+	        <button id='playButton' onClick={this.props.playVideo}>Play!</button>
+	        <button id='pauseButton' onClick={this.props.pauseVideo}>Pause!</button>
+	      </div>
+	    );
+	  }
+	}
 // export connect(mapStateToProps)(Player);
 //export default withStyles(s)(Player);
 export default connect(mapStateToProps)(withStyles(s)(Player));
