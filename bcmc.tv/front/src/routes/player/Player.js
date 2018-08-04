@@ -19,53 +19,7 @@ const contractAddress = Buffer.from('cfeb869f69431e42cdb54a4f4f105c19c080a601', 
 import "../../../node_modules/video-react/dist/video-react.css";
 
 import {loadInitialDataSocket,addNewItemSocket,remItemCompleteSocket
-	   ,AddItem,Remtem,itemsIsLoading, itemsFetchDataSuccess} from './actions/action'
-
-const TestCards = [
-                   {
-                     "category": "News",
-                     "title": "CNN Acquire BEME",
-                     "text": "CNN purchased Casey Neistat's Beme app for $25million.",
-                     "image": "https://source.unsplash.com/user/erondu/600x400",
-                     "account":'10f8bf6a479f320ead074411a4b0e7944ea8c9c1'
-                   },
-                   {
-                     "category": "Travel",
-                     "title": "Nomad Lifestyle",
-                     "text": "Learn our tips and tricks on living a nomadic lifestyle",
-                     "image": "https://source.unsplash.com/user/_vickyreyes/600x400",
-                     "account":'20f8bf6a479f320ead074411a4b0e7944ea8c9c1'
-                   },
-                   {
-                     "category": "Development",
-                     "title": "React and the WP-API",
-                     "text": "The first ever decoupled starter theme for React & the WP-API",
-                     "image": "https://source.unsplash.com/user/ilyapavlov/600x400",
-                     "account":'30f8bf6a479f320ead074411a4b0e7944ea8c9c1'
-                   },
-                   {
-                     "category": "News",
-                     "title": "CNN Acquire BEME",
-                     "text": "CNN purchased Casey Neistat's Beme app for $25million.",
-                     "image": "https://source.unsplash.com/user/erondu/600x400",
-                     "account":'40f8bf6a479f320ead074411a4b0e7944ea8c9c1'
-                   },
-                   {
-                     "category": "Travel",
-                     "title": "Nomad Lifestyle",
-                     "text": "Learn our tips and tricks on living a nomadic lifestyle",
-                     "image": "https://source.unsplash.com/user/_vickyreyes/600x400",
-                     "account":'50f8bf6a479f320ead074411a4b0e7944ea8c9c1'
-                   },
-                   {
-                     "category": "Development",
-                     "title": "React and the WP-API",
-                     "text": "The first ever decoupled starter theme for React & the WP-API",
-                     "image": "https://source.unsplash.com/user/ilyapavlov/600x400",
-                     "account":'90f8bf6a479f320ead074411a4b0e7944ea8c9c1'
-                   }
-                 ]
-
+	   ,AddItem,Remtem,initialItems,itemsIsLoading, itemsFetchDataSuccess} from './actions/action'
 
 const mapStateToProps = (state = {}) => {
     return {...state};
@@ -93,18 +47,17 @@ class Player extends Component {
 	    this.state = {
 	    	totalMovies:0,
 	    	movieReqIndex:0,
-	    	movieAddr: 'Select Movie Address', 
     		playerAccount: publicKey.toString('hex'), 
     		playerSource: "https://media.w3.org/2010/05/sintel/trailer_hd.mp4",
 	    };
 	    
-	    this.handleChangeMovieAddr = this.handleChangeMovieAddr.bind(this);
-	    this.handleSubmitMovieAddr = this.handleSubmitMovieAddr.bind(this);
+	    this.handleSubmitMovieUpdate = this.handleSubmitMovieUpdate.bind(this);
 	    this.handleChangePlayerAccount = this.handleChangePlayerAccount.bind(this);
 	    this.handleSubmitPlayerAccount = this.handleSubmitPlayerAccount.bind(this);
 	    this.handleSubmitMovieSelection = this.handleSubmitMovieSelection.bind(this);
 	    this.getTotalMovies = this.getTotalMovies.bind(this);
 	    this.getMovie = this.getMovie.bind(this);
+	    this.updateMovieList = this.updateMovieList.bind(this);
 	    
 	    this.ethlite = new Ethlite(this, function(obj, event, data)  {
 	    	console.log("callback event=:" + event +" data=" + data);
@@ -121,10 +74,17 @@ class Player extends Component {
 	    			var outputs = coder.decodeParameters(bcmc.abi[id]["outputs"], result);
 		    		var movieStr = outputs[0];
 		    		console.log(movieStr)
-		    		var movieObj = JSON.parse(movieStr);
-		    		var movieUrl = movieObj.sources[0];
-		    		var thumbUrl =  movieUrl.substr(0,movieUrl.lastIndexOf('/') + 1).concat(movieObj.thumb);
 		    		
+		    		var movieObj = JSON.parse(movieStr);
+		    		
+		    		var movieUrl = movieObj.sources[0];
+		    		var thumbUrl = movieObj.thumb;
+		    		
+		    		if (thumbUrl.indexOf('http://') === 0 || thumbUrl.indexOf('https://') === 0) {
+		    		    //do nothing
+		    		} else {
+		    			thumbUrl =  movieUrl.substr(0,movieUrl.lastIndexOf('/') + 1).concat(movieObj.thumb);
+		    		}
 		    		obj.setState({playerSource:movieUrl})
 		       		console.log("url:" + movieUrl);
 		    		
@@ -155,12 +115,6 @@ class Player extends Component {
 	     dispatch(itemsIsLoading(true));
 	     this.getTotalMovies();
 	     
-	  {/*   
-	     for (var i of TestCards) {
-	    	 var data = {item : i, itemId: i.account}
-	    	 dispatch(AddItem(data));
-	     }
-	     */}
 	    dispatch(itemsIsLoading(false));
 	    console.dir(items);
     }
@@ -170,29 +124,6 @@ class Player extends Component {
   handleChangePlayerAccount(event) {
     this.setState({playerAccount: event.target.playerAccount});
   }
-
-  handleChangeMovieAddr(e) {
-
-  }
-/*
-  handleSubmitMovieAddr(event) {
-	  event.preventDefault(); 
-	  var movieAddr = Buffer.from('ffcf8fdee72ac11b5c542428b35eef5769c409f0', 'hex');
-		console.log(bcmc.abi[9]);
-		var codedCall = coder.encodeFunctionCall(bcmc.abi[9], [ '0x' + movieAddr.toString('hex')]);
-		console.log("codedCall:" + codedCall);
-		
-		const callObj = {
-			  from:'0x' + publicKey.toString('hex'), 
-			  gasPrice: '0x09184e72a000', 
-			  gasLimit: '0x271000',
-			  to: '0x' + contractAddress.toString('hex'), 
-			  value: '0x00', 
-			  data: codedCall,
-		}
-		this.ethlite.sendEthCall(JSON.stringify(callObj))
-  }
-*/
 
   
   getTotalMovies() {
@@ -234,11 +165,22 @@ class Player extends Component {
 		var request = {cmd:"getMovie", calldata: callObj}
 		this.ethlite.sendEthCallRequest(JSON.stringify(request))
   }
-  handleSubmitMovieAddr(event) {
-	  event.preventDefault(); 
+ 
+  updateMovieList()
+  { 
 	  for (var i=0; i < this.state.totalMovies; i++){
 		  this.getMovie(i);
 	  }
+  }
+  
+  handleSubmitMovieUpdate(event) {
+	  const {dispatch} = this.props;
+	  event.preventDefault();
+	  
+	  dispatch(initialItems([]));
+	  
+	  this.getTotalMovies()
+	  this.updateMovieList();
   }
 
   handleSubmitPlayerAccount(event) {
@@ -308,7 +250,13 @@ class Player extends Component {
 		      <header className="Player-header">
 			      <h1 className="Player-title">Demo Player</h1>
 	          </header>
-			  <form onSubmit={this.handleSubmitPlayerAccount}>
+
+	   	     <div>
+	           {/*<VideoPlayer playsInline fluid={false}  width={320} height={180} src={this.state.playerSource} />*/}
+			   <Video src={this.state.playerSource}/>
+             </div>
+
+	          <form onSubmit={this.handleSubmitPlayerAccount}>
 			     
 				 <div className={s.formGroup}>
 				    <label className={s.label} htmlFor="account">
@@ -334,33 +282,15 @@ class Player extends Component {
 	    	tmp.map((item, key) => <Card key={key} index={key} details={item} />)
 	    }
 	  </div>
+	  <br/>
       <div className="Player-item">
-		  <form onSubmit={this.handleSubmitMovieAddr}>
-		  
-			 <div className={s.formGroup}>
-			    <label className={s.label} htmlFor="movie">
-			    Movie Account:
-			    <input 
-			      className={s.input}   
-			      type="text" 
-			      id="movie" 
-			      name="movie" 
-			      value={this.state.movieAddr} 
-			      onChange={this.handleChangeMovieAddr} />
-			   <br/>(Ethereum Account)
-			    </label>
-			</div>
+		  <form onSubmit={this.handleSubmitMovieUpdate}>
 			<button className={s.button} type="submit" >
-			  Buy
+			  Update Movies List
 			</button>
           </form>
 	   </div>
 	   <br/>
-	   <div>
-	        {/*<VideoPlayer playsInline fluid={false}  width={320} height={180} src={this.state.playerSource} />*/}
-			   <Video src={this.state.playerSource}/>
-	   </div>
-	   
 	</div>
    </div>
    </Context.Provider>

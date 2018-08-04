@@ -25,6 +25,8 @@ const reducer = (state=initialState, action) => {
 	        ...state,
 	        items:List(action.items)
 	      }
+	    
+
 		  // return {
 	    //     ...state,
 	    //     items:state.items.push({id:action.items.itemId,item:action.items.item,completed:action.items.completed})
