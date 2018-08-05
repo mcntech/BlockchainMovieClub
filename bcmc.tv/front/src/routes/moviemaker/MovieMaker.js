@@ -70,7 +70,9 @@ class MovieMaker extends Component {
         "thumb" : this.state.MovieCoverArtUrl,
         "title" : this.state.MovieTitle
     }
-	var codedCall = coder.encodeFunctionCall(bcmc.abi[1], [JSON.stringify(regData), this.state.MoviePricePerView, '0x00']);
+	
+	var id = this.ethlite.findAbiIdForFunction(bcmc.abi, "registerMovie")
+	var codedCall = coder.encodeFunctionCall(bcmc.abi[id], [JSON.stringify(regData), this.state.MoviePricePerView, '0x00']);
 	console.log("codedCall:" + codedCall);
 		
 	const txParams = {

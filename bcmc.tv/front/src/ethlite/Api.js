@@ -67,6 +67,12 @@ class Ethlite
 	  this.socket.emit("eth_call_request", data);
 	}
 	
-	sendEthCallRequest
+	findAbiIdForFunction(abi, fnName) {
+		for(var i = 0; i < abi.length; i++) {
+	      if(abi[i].type == "function" && abi[i].name == fnName)
+	        return i;
+	    }
+		return -1;
+	}
 }
 export  default Ethlite ;
