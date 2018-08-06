@@ -244,6 +244,12 @@ contract bcmc /*is ERC173, ERC165,  ERC721, ERC721TokenReceiver, ERC721Metadata,
 	    uint     viewers;
     }
 
+    struct ViewToken {      
+    	uint32    movieId;
+        uint32    cgms;
+        string    drm;
+    }
+
     struct Advert {
    	    string   url;
         uint     budget;
@@ -301,16 +307,26 @@ contract bcmc /*is ERC173, ERC165,  ERC721, ERC721TokenReceiver, ERC721Metadata,
    mapping (uint256 => address) public movieIndexToSponsorAddress;
    
 
+    /// @dev A mapping from player id to ViewTokens
+    mapping (address => mapping (uint256 => ViewToken)) public viewRightGrants;
+
 
     address public owner;
+    // Values 0-10,000 map to 0%-100%
+    uint256 public ownerCut;
 
     constructor() public {
        owner = msg.sender;
+       ownerCut = 500;          // 5%
     }
 
     modifier onlyOwner() {
        require(msg.sender == owner);
        _;
+    }
+    
+    function setOwnerCut(uint256 _ownerCut) onlyOwner{
+        ownerCut = _ownerCut;
     }
      
     /// @dev An method that registers a new movie.
@@ -351,6 +367,64 @@ contract bcmc /*is ERC173, ERC165,  ERC721, ERC721TokenReceiver, ERC721Metadata,
         _price = movies[_id].price;
     }
     
+    /// @dev Computes owner's cut of a sale.
+    /// @param _price - Sale price of NFT.
+    function _computeCut(uint256 _price) internal view returns (uint256) {
+        // NOTE: We don't use SafeMath (or similar) in this function because
+        //  all of our entry functions carefully cap the maximum values for
+        //  currency (at 128-bits), and ownerCut <= 10000 (see the require()
+        //  statement in the ClockAuction constructor). The result of this
+        //  function is always guaranteed to be <= _price.
+        return _price * ownerCut / 10000;
+    }
+
+    function grantViewToken(uint256 id, address buyer){
+        // TODO generate DRM
+        mapping (uint256 => ViewToken) viewTokens = viewRightGrants [buyer];
+        ViewToken memory viewToken = ViewToken({movieId:uint32(id), cgms:1, drm:""});
+        viewTokens[id] = viewToken;
+        //tokens.push(token);
+    }
+    
+    //
+    function purchaseMovie(uint256 id)
+    {
+        uint256 _bidAmount = msg.value;
+        
+        require(id < movies.length);
+        Movie storage movie = movies[id];
+        uint256 price = movie.price;
+        require(_bidAmount >= price);    
+        
+        address seller = movieIndexToOwner[id];
+
+        // Transfer proceeds to seller (if there are any!)
+        if (price > 0) {
+            // Calculate the auctioneer's cut.
+            // (NOTE: _computeCut() is guaranteed to return a
+            // value <= price, so this subtraction can't go negative.)
+            uint256 fees = _computeCut(price);
+            uint256 sellerProceeds = price - fees;
+
+            seller.transfer(sellerProceeds);
+        }
+
+        uint256 bidExcess = _bidAmount - price;
+        if(bidExcess > 0){
+            msg.sender.transfer(bidExcess);
+        }
+        // Transfer right
+        grantViewToken(id, msg.sender);
+    }
+
+    function getPurchasedMovie(uint256 index) public constant returns (uint32 movieid, uint32 cgms, string drm)
+    {
+       mapping (uint256 => ViewToken) viewTokens = viewRightGrants[msg.sender];
+        ViewToken storage token = viewTokens[index];
+        movieid = token.movieId;
+        cgms = token.cgms;
+        drm = token.drm;
+    }
 
     /// @notice Returns all the relevant information about a specific movie.
     /// @param _id The ID of the interest.
