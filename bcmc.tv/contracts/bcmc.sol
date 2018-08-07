@@ -1,4 +1,4 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.4.24;
 
 /// @title ERC-173 Contract Ownership Standard
 /// @dev See https://github.com/ethereum/EIPs/blob/master/EIPS/eip-173.md
@@ -63,7 +63,7 @@ interface ERC721 /* is ERC165 */ {
     /// @param _to The new owner
     /// @param _tokenId The NFT to transfer
     /// @param data Additional data with no specified format, sent in call to `_to`
-    function safeTransferFrom(address _from, address _to, uint256 _tokenId, bytes data) external payable;
+    function safeTransferFrom(address _from, address _to, uint256 _tokenId, bytes data) public;
 
     /// @notice Transfers the ownership of an NFT from one address to another address
     /// @dev This works identically to the other function with an extra data parameter,
@@ -71,7 +71,7 @@ interface ERC721 /* is ERC165 */ {
     /// @param _from The current owner of the NFT
     /// @param _to The new owner
     /// @param _tokenId The NFT to transfer
-    function safeTransferFrom(address _from, address _to, uint256 _tokenId) external payable;
+    function safeTransferFrom(address _from, address _to, uint256 _tokenId) public;
 
     /// @notice Transfer ownership of an NFT -- THE CALLER IS RESPONSIBLE
     ///  TO CONFIRM THAT `_to` IS CAPABLE OF RECEIVING NFTS OR ELSE
@@ -83,7 +83,7 @@ interface ERC721 /* is ERC165 */ {
     /// @param _from The current owner of the NFT
     /// @param _to The new owner
     /// @param _tokenId The NFT to transfer
-    function transferFrom(address _from, address _to, uint256 _tokenId) external payable;
+    function transferFrom(address _from, address _to, uint256 _tokenId) public;
 
     /// @notice Change or reaffirm the approved address for an NFT
     /// @dev The zero address indicates there is no approved address.
@@ -99,7 +99,7 @@ interface ERC721 /* is ERC165 */ {
     ///  multiple operators per owner.
     /// @param _operator Address to add to the set of authorized operators
     /// @param _approved True if the operator is approved, false to revoke approval
-    function setApprovalForAll(address _operator, bool _approved) external;
+    function setApprovalForAll(address _operator, bool _approved) public;
 
     /// @notice Get the approved address for a single NFT
     /// @dev Throws if `_tokenId` is not a valid NFT.
@@ -124,22 +124,42 @@ interface ERC165 {
     function supportsInterface(bytes4 interfaceID) external view returns (bool);
 }
 
-/// @dev Note: the ERC-165 identifier for this interface is 0x150b7a02.
-interface ERC721TokenReceiver {
-    /// @notice Handle the receipt of an NFT
-    /// @dev The ERC721 smart contract calls this function on the recipient
-    ///  after a `transfer`. This function MAY throw to revert and reject the
-    ///  transfer. Return of other than the magic value MUST result in the
-    ///  transaction being reverted.
-    ///  Note: the contract address is always the message sender.
-    /// @param _operator The address which called `safeTransferFrom` function
-    /// @param _from The address which previously owned the token
-    /// @param _tokenId The NFT identifier which is being transferred
-    /// @param _data Additional data with no specified format
-    /// @return `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`
-    ///  unless throwing
-    function onERC721Received(address _operator, address _from, uint256 _tokenId, bytes _data) external returns(bytes4);
+/**
+ * @title ERC721 token receiver interface
+ * @dev Interface for any contract that wants to support safeTransfers
+ * from ERC721 asset contracts.
+ */
+contract ERC721Receiver {
+  /**
+   * @dev Magic value to be returned upon successful reception of an NFT
+   *  Equals to `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`,
+   *  which can be also obtained as `ERC721Receiver(0).onERC721Received.selector`
+   */
+  bytes4 internal constant ERC721_RECEIVED = 0x150b7a02;
+
+  /**
+   * @notice Handle the receipt of an NFT
+   * @dev The ERC721 smart contract calls this function on the recipient
+   * after a `safetransfer`. This function MAY throw to revert and reject the
+   * transfer. Return of other than the magic value MUST result in the
+   * transaction being reverted.
+   * Note: the contract address is always the message sender.
+   * @param _operator The address which called `safeTransferFrom` function
+   * @param _from The address which previously owned the token
+   * @param _tokenId The NFT identifier which is being transferred
+   * @param _data Additional data with no specified format
+   * @return `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`
+   */
+  function onERC721Received(
+    address _operator,
+    address _from,
+    uint256 _tokenId,
+    bytes _data
+  )
+    public
+    returns(bytes4);
 }
+
 
 /// @title ERC-721 Non-Fungible Token Standard, optional metadata extension
 /// @dev See https://github.com/ethereum/EIPs/blob/master/EIPS/eip-721.md
@@ -184,7 +204,7 @@ interface ERC721Enumerable /* is ERC721 */ {
     function tokenOfOwnerByIndex(address _owner, uint256 _index) external view returns (uint256);
 }
 
-contract bcmc /*is ERC173, ERC165,  ERC721, ERC721TokenReceiver, ERC721Metadata, ERC721Enumerable*/
+contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC721Enumerable*/
 {
 
 
@@ -229,6 +249,17 @@ contract bcmc /*is ERC173, ERC165,  ERC721, ERC721TokenReceiver, ERC721Metadata,
     bytes4(keccak256('exists(uint256)'));
     */
 
+ /**
+   * @dev Magic value to be returned upon successful reception of an NFT
+   *  Equals to `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`,
+   *  which can be also obtained as `ERC721Receiver(0).onERC721Received.selector`
+   */
+  bytes4 internal constant ERC721_RECEIVED = 0x150b7a02;
+
+
+    /// @notice Name and symbol of the non fungible token, as defined in ERC721.
+    string public constant bcmc_name = "BlockchainMovieClub";
+    string public constant bcmc_symbol = "BCMC";
 
     /// @dev The Birth event is fired whenever a new kitten comes into existence. This obviously
     ///  includes any time a cat is created through the giveBirth method, but it is also called
@@ -299,12 +330,15 @@ contract bcmc /*is ERC173, ERC165,  ERC721, ERC721TokenReceiver, ERC721Metadata,
     /// @dev A mapping from movie IDs to an address that has been approved to view
     /// the movie by obtaining DRM meta data at any time.
     /// A zero value means no approval is outstanding.
-    mapping (uint256 => address) public movieIndexToViewRightApproved;
+    mapping (uint256 => address) public tokenApprovals;
    
-   /// @dev A mapping from movieIDs to an address that has been approved to use
-   /// this movie for viewing via sponsoredView(). Each movie can only have n approved
-   /// address for viewing at any time. A zero value means no approval is outstanding.
-   mapping (uint256 => address) public movieIndexToSponsorAddress;
+    // Mapping from owner to operator approvals
+    mapping (address => mapping (address => bool)) internal operatorApprovals;
+
+    /// @dev A mapping from movieIDs to an address that has been approved to use
+    /// this movie for viewing via sponsoredView(). Each movie can only have n approved
+    /// address for viewing at any time. A zero value means no approval is outstanding.
+    mapping (uint256 => address) public movieIndexToSponsorAddress;
    
 
     /// @dev A mapping from player id to ViewTokens
@@ -323,6 +357,23 @@ contract bcmc /*is ERC173, ERC165,  ERC721, ERC721TokenReceiver, ERC721Metadata,
     modifier onlyOwner() {
        require(msg.sender == owner);
        _;
+    }
+    
+
+    /// ERC173
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);    
+    
+    /// @dev method to get owner. automatically provided by getter.
+    //function owner() view external;
+    //{
+    //    return owner;    
+    //}
+    
+    function transferOwnership(address _newOwner) external
+    {
+        address prevOwner = owner;
+        owner = _newOwner;
+        OwnershipTransferred(prevOwner, _newOwner);
     }
     
     function setOwnerCut(uint256 _ownerCut) onlyOwner{
@@ -344,9 +395,9 @@ contract bcmc /*is ERC173, ERC165,  ERC721, ERC721TokenReceiver, ERC721Metadata,
     			duration:_duration, 
     			rating:0, viewers:0});
 	    uint256 movieId = movies.push(movie) - 1;
-	    movies[movieId] = movie;	 
+	    //movies[movieId] = movie;	 
 	    movieIndexToOwner[movieId] = msg.sender;
-	       
+	    ownershipTokenCount[msg.sender]++;
     }
 
     function registerPlayer(uint _preference, uint _capabilities) public {
@@ -386,8 +437,9 @@ contract bcmc /*is ERC173, ERC165,  ERC721, ERC721TokenReceiver, ERC721Metadata,
         //tokens.push(token);
     }
     
-    //
-    function purchaseMovie(uint256 id)
+    /// @dev Purchase a movie.
+    /// @param id is moveie id set at the time of registratoin
+    function purchaseMovie(uint256 id) public payable
     {
         uint256 _bidAmount = msg.value;
         
@@ -429,6 +481,7 @@ contract bcmc /*is ERC173, ERC165,  ERC721, ERC721TokenReceiver, ERC721Metadata,
     /// @notice Returns all the relevant information about a specific movie.
     /// @param _id The ID of the interest.
     function getMovieUrl(uint _id) public constant returns(string url) {
+	    require(_id <= movies.length);
 	    url = movies[_id].url;
     }
 
@@ -458,7 +511,7 @@ contract bcmc /*is ERC173, ERC165,  ERC721, ERC721TokenReceiver, ERC721Metadata,
     
     /// @notice Returns the total number of movies.
     /// @dev Required for ERC-721 compliance.
-    function totalMovies() public view returns (uint) {
+    function totalMovies() public view returns (uint256) {
         return movies.length;
 	}
 	
@@ -532,7 +585,7 @@ contract bcmc /*is ERC173, ERC165,  ERC721, ERC721TokenReceiver, ERC721Metadata,
     /// @notice Returns the address currently assigned ownership of a given movie.
     /// @dev Required for ERC-721 compliance.
     function ownerOf(uint256 _tokenId)
-        external
+        public
         view
         returns (address _owner)
     {
@@ -540,68 +593,154 @@ contract bcmc /*is ERC173, ERC165,  ERC721, ERC721TokenReceiver, ERC721Metadata,
         require(_owner != address(0));
     }
     
-    function safeTransferFrom(address _from, address _to, uint256 _tokenId, bytes data) external payable
-    {
-        assert(false);
+    
+    
+    /// helper functions for ERC-721 implementatoin of safeTransferFrom
+   
+    function isApprovedOrOwner(address _spender, uint256 _tokenId) internal view returns (bool result) {
+        address tokenOwner = ownerOf(_tokenId);
+        result = _spender == tokenOwner || getApproved(_tokenId) == _spender || isApprovedForAll(owner, _spender);
     }
     
-    function safeTransferFrom(address _from, address _to, uint256 _tokenId) external payable
-    {
-        assert(false);
-    }
-    function transferFrom(address _from, address _to, uint256 _tokenId) external payable
-    {
-        assert(false);
+    modifier canTransfer(uint256 _tokenId) {
+        require(isApprovedOrOwner(msg.sender, _tokenId));
+        _;
     }
     
-    function approve(address _approved, uint256 _tokenId) external payable
+    function isContract(address addr) internal view returns (bool) {
+        uint256 size;
+        assembly { size := extcodesize(addr) }  
+        return size > 0;
+    }
+
+    function checkAndCallSafeTransfer(address _from, address _to, uint256 _tokenId, bytes _data) internal returns (bool) {
+        if (!isContract(_to)) {
+              return true;
+            
+        }
+        bytes4 retval = ERC721Receiver(_to).onERC721Received(msg.sender, _to, _tokenId, _data);
+        return (retval == ERC721_RECEIVED); 
+    }
+
+    /// @dev Required for ERC-721 compliance
+    function safeTransferFrom(address _from, address _to, uint256 _tokenId, bytes _data) public canTransfer(_tokenId) {
+        transferFrom(_from, _to, _tokenId);
+        require(checkAndCallSafeTransfer(_from, _to, _tokenId, _data)); 
+        
+    }
+
+
+    /// @dev Required for ERC-721 compliance.
+    function safeTransferFrom(address _from, address _to, uint256 _tokenId) public
     {
-        assert(false);
+        safeTransferFrom(_from, _to, _tokenId, "");
     }
     
-    function setApprovalForAll(address _operator, bool _approved) external
+    /// @dev Required for ERC-721 compliance.
+    function transferFrom(address _from, address _to, uint256 _tokenId) public
     {
-        assert(false);
+        _transfer(_from, _to, _tokenId);
     }
     
-    function getApproved(uint256 _tokenId) external view returns (address)
+    /// @dev Required for ERC-721 compliance.
+    function approve(address _to, uint256 _tokenId) public
     {
-        assert(false);
+        address owner = ownerOf(_tokenId);
+        require(_to != owner);
+        require(msg.sender == owner || isApprovedForAll(owner, msg.sender));
+
+        tokenApprovals[_tokenId] = _to;
+        emit Approval(owner, _to, _tokenId);
     }
     
-    function isApprovedForAll(address _owner, address _operator) external view returns (bool)
+    /// @dev Required for ERC-721 compliance.
+    function setApprovalForAll(address _to, bool _approved) public
     {
-        assert(false);
+        require(_to != msg.sender);
+        operatorApprovals[msg.sender][_to] = _approved;
+        emit ApprovalForAll(msg.sender, _to, _approved);
+    }
+    
+    /// @dev Required for ERC-721 compliance.
+    function getApproved(uint256 _tokenId) public view returns (address)
+    {
+       return tokenApprovals[_tokenId];
+    }
+    
+    /// @dev Required for ERC-721 compliance.
+    function isApprovedForAll(address _owner, address _operator) public view returns (bool)
+    {
+        return operatorApprovals[_owner][_operator];
     }
     
     // ERC721Metadata
     function name() external view returns (string _name)
     {
-        assert(false);
+        _name = bcmc_name;
     }
     
+    /// @dev Required for ERC-721 compliance.
     function symbol() external view returns (string _symbol)
     {
-        assert(false);    
+        _symbol = bcmc_symbol;    
     }
+    
+    /// @dev Required for ERC-721 compliance.
     function tokenURI(uint256 _tokenId) external view returns (string)
     {
-        assert(false);
+        return getMovieUrl(_tokenId);
     }
     
     // ERC721Enumerable
     function totalSupply() external view returns (uint256)
     {
-        assert(false);    
-    }
-    function tokenByIndex(uint256 _index) external view returns (uint256)
-    {
-        assert(false);
+        return totalMovies();
     }
     
+    /// @dev Required for ERC-721 compliance.
+    function tokenByIndex(uint256 _index) external view returns (uint256 resultToken)
+    {
+        uint256 totalMovies =  movies.length;
+
+        if(totalMovies > 0 && _index <= totalMovies) {
+            resultToken = _index;
+        }
+        resultToken = 0;
+    }
+    
+    /// @dev Required for ERC-721 compliance.
     function tokenOfOwnerByIndex(address _owner, uint256 _index) external view returns (uint256)
     {
-        assert(false);
+        uint256 tokenCount = balanceOf(_owner);
+        uint256 result = 0;
+        if (tokenCount == 0) {
+            // Return an empty array
+            return result;
+        } else {
+            uint256 totalMovies =  movies.length;
+            uint256 resultIndex = 0;
+
+            // We count on the fact that all cats have IDs starting at 1 and increasing
+            // sequentially up to the totalCat count.
+            uint256 id;
+
+            for (id = 1; id <= totalMovies; id++) {
+                if (movieIndexToOwner[id] == _owner) {
+                    result = id;
+                    break;
+                }
+            }
+
+            return result;
+        }
     }
-    
+
+
+    /// ERC721TokenReceiver
+    function onERC721Received(address _operator, address _from, uint256 _tokenId, bytes _data) public returns(bytes4)
+    {
+       //return bytes4(keccak256("onERC721Received(address,uint256,bytes)"));
+       return ERC721_RECEIVED;
+       
+    }
 }
