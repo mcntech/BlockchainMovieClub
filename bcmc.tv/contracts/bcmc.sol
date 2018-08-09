@@ -265,7 +265,9 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     ///  includes any time a cat is created through the giveBirth method, but it is also called
     ///  when a new gen0 cat is created.
     event NewMovie(address owner, uint256 movieId);
-    
+    event MovieViewTokenRequested(address drmprovider, address buyer, string buyerkey, uint256 movieid);
+    event MovieViewTokenGranted(address player, uint256 movieId);
+        
     struct Movie {      
     	string   url;
         uint     price;
@@ -273,6 +275,7 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
 
 	    uint     rating;
 	    uint     viewers;
+	    address  drmprovider;
     }
 
     struct ViewToken {      
@@ -293,6 +296,7 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
         uint     capabilities;
 	    address  crnt_movie;
         uint     indx_advert;
+        string   publickey;
     }
 
     struct Sponsor {
@@ -318,7 +322,6 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     /// some valid owner address.
     mapping(uint256 => address) movieIndexToOwner;
 
-
     // @dev A mapping from owner address to count of tokens that address owns.
     //  Used internally inside balanceOf() to resolve ownership count.
     mapping (address => uint256) ownershipTokenCount;
@@ -334,13 +337,7 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
    
     // Mapping from owner to operator approvals
     mapping (address => mapping (address => bool)) internal operatorApprovals;
-
-    /// @dev A mapping from movieIDs to an address that has been approved to use
-    /// this movie for viewing via sponsoredView(). Each movie can only have n approved
-    /// address for viewing at any time. A zero value means no approval is outstanding.
-    mapping (uint256 => address) public movieIndexToSponsorAddress;
    
-
     /// @dev A mapping from player id to ViewTokens
     mapping (address => mapping (uint256 => ViewToken)) public viewRightGrants;
 
@@ -387,21 +384,46 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     function registerMovie(
     		string _url,
     		uint _price, 
-    		uint _duration) public {
+    		uint _duration,
+    		address _drmprovider) public {
     	
     	Movie memory movie = Movie({
     			url:_url,
     			price:_price, 
     			duration:_duration, 
-    			rating:0, viewers:0});
+    			rating:0, viewers:0,
+    			drmprovider: _drmprovider});
 	    uint256 movieId = movies.push(movie) - 1;
 	    //movies[movieId] = movie;	 
 	    movieIndexToOwner[movieId] = msg.sender;
 	    ownershipTokenCount[msg.sender]++;
     }
 
-    function registerPlayer(uint _preference, uint _capabilities) public {
-    	Player memory player = Player({preference:_preference, capabilities:_capabilities, crnt_movie:0, indx_advert:0});
+    /// @dev set drm provider for a new movie.
+	function setDrmProvider(
+	    uint256 id, 
+	    address _provider) public
+	{
+		require(id < movies.length && msg.sender == movieIndexToOwner[id]);
+		movies[id].drmprovider = _provider;
+	}
+	
+	/// @dev registers a player.
+	/// @param _preference - Advertisement preferences 0-none, 0xFF- all. TODO: Each bit defines a preference such as SPORTS
+	/// @param _capabilities - Player capabilities resolution 0x000000FF(HD, UHD), audio channels 0x0000FF00, DRM 0x00FF000000
+	/// @param _publickey - for obtaining DRM. Content provider uses this key to encrypt DRM information and add it with the
+	///        viewing right.
+    function registerPlayer(
+    		uint _preference, 
+    		uint _capabilities,
+    		string _publickey) 
+    		public 
+    {
+    	Player memory player = Player({preference:_preference, 
+    							capabilities:_capabilities, 
+    							crnt_movie:0, 
+    							indx_advert:0,
+    							publickey:_publickey});
 	    players[msg.sender] = player;
     }
 
@@ -429,23 +451,43 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
         return _price * ownerCut / 10000;
     }
 
-    function grantViewToken(uint256 id, address buyer){
-        // TODO generate DRM
+    /// @dev Request viewToken from content provider.
+    /// @param id is moveie id set at the time of registratoin
+    function requestViewToken(address drmprovider, address buyer, string buyerkey, uint256 id) internal {
         mapping (uint256 => ViewToken) viewTokens = viewRightGrants [buyer];
-        ViewToken memory viewToken = ViewToken({movieId:uint32(id), cgms:1, drm:""});
+        
+        /// Create a token with drm pending
+        ViewToken memory viewToken = ViewToken({movieId:uint32(id), cgms:1, drm:"pending"});
         viewTokens[id] = viewToken;
-        //tokens.push(token);
+        MovieViewTokenRequested(drmprovider, buyer, buyerkey, id);
+    }
+
+    /// @dev Grant viewToken for the player.
+    /// @param id is moveie id set at the time of registratoin
+    function grantViewToken( address buyer, uint256 id, string _drm) public {
+        require(id <= movies.length && msg.sender == movies[id].drmprovider);
+        mapping (uint256 => ViewToken) viewTokens = viewRightGrants [buyer];
+        
+        /// Fill the view token with DRM data
+        ViewToken memory viewToken = ViewToken({movieId:uint32(id), cgms:1, drm:_drm});
+        viewTokens[id] = viewToken;
+        emit MovieViewTokenGranted(buyer, id);
     }
     
     /// @dev Purchase a movie.
-    /// @param id is moveie id set at the time of registratoin
+    /// @param id is movie id set at the time of registratoin
     function purchaseMovie(uint256 id) public payable
     {
         uint256 _bidAmount = msg.value;
+        address buyer = msg.sender;
         
         require(id < movies.length);
+        
         Movie storage movie = movies[id];
+        Player storage player = players[buyer];
+        
         uint256 price = movie.price;
+        
         require(_bidAmount >= price);    
         
         address seller = movieIndexToOwner[id];
@@ -465,8 +507,8 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
         if(bidExcess > 0){
             msg.sender.transfer(bidExcess);
         }
-        // Transfer right
-        grantViewToken(id, msg.sender);
+        // Request view right
+        requestViewToken(movie.drmprovider, buyer, player.publickey ,id);
     }
 
     function getPurchasedMovie(uint256 index) public constant returns (uint32 movieid, uint32 cgms, string drm)
