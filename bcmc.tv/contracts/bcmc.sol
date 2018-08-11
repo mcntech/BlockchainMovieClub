@@ -261,26 +261,28 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     string public constant bcmc_name = "BlockchainMovieClub";
     string public constant bcmc_symbol = "BCMC";
 
-    /// @dev The Birth event is fired whenever a new kitten comes into existence. This obviously
-    ///  includes any time a cat is created through the giveBirth method, but it is also called
-    ///  when a new gen0 cat is created.
+
     event NewMovie(address owner, uint256 movieId);
     event MovieViewTokenRequested(address drmprovider, address buyer, string buyerkey, uint256 movieid);
     event MovieViewTokenGranted(address player, uint256 movieId);
         
     struct Movie {      
-    	string   url;
-        uint     price;
-        uint     duration;
-
-	    uint     rating;
-	    uint     viewers;
-	    address  drmprovider;
+    	string     url;
+    	string     thumb;
+		string     title;
+    	string     descript;
+        uint256    price;
+        uint32     duration;
+		uint32     drmtype;
+	    uint32     rating;
+	    uint32     viewers;
+	    address    drmprovider;
     }
 
     struct ViewToken {      
     	uint32    movieId;
         uint32    cgms;
+        uint32    status;
         string    drm;
     }
 
@@ -383,15 +385,24 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     /// @param _duration duration of the movie.
     function registerMovie(
     		string _url,
-    		uint _price, 
-    		uint _duration,
+    		string _thumb,
+    		string _title,
+    		string _descript,
+    		uint256 _price, 
+    		uint32 _duration,
+    		uint32 _drmtype,
     		address _drmprovider) public {
     	
     	Movie memory movie = Movie({
     			url:_url,
+    			thumb:_thumb,
+    			title:_title,
+    			descript:_descript,
     			price:_price, 
     			duration:_duration, 
-    			rating:0, viewers:0,
+    			drmtype : _drmtype,
+    			rating:0, 
+    			viewers:0,
     			drmprovider: _drmprovider});
 	    uint256 movieId = movies.push(movie) - 1;
 	    //movies[movieId] = movie;	 
@@ -457,7 +468,7 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
         mapping (uint256 => ViewToken) viewTokens = viewRightGrants [buyer];
         
         /// Create a token with drm pending
-        ViewToken memory viewToken = ViewToken({movieId:uint32(id), cgms:1, drm:"pending"});
+        ViewToken memory viewToken = ViewToken({movieId:uint32(id), cgms:1, status:1, drm:"pending"});
         viewTokens[id] = viewToken;
         MovieViewTokenRequested(drmprovider, buyer, buyerkey, id);
     }
@@ -469,7 +480,7 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
         mapping (uint256 => ViewToken) viewTokens = viewRightGrants [buyer];
         
         /// Fill the view token with DRM data
-        ViewToken memory viewToken = ViewToken({movieId:uint32(id), cgms:1, drm:_drm});
+        ViewToken memory viewToken = ViewToken({movieId:uint32(id), cgms:1, status:2, drm:_drm});
         viewTokens[id] = viewToken;
         emit MovieViewTokenGranted(buyer, id);
     }
@@ -522,11 +533,36 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
 
     /// @notice Returns all the relevant information about a specific movie.
     /// @param _id The ID of the interest.
-    function getMovieUrl(uint _id) public constant returns(string url) {
+    function getMovieData(uint _id) public constant returns(
+    			string _url,
+    			string _thumb,
+    			string _title,
+    			string _descript, 
+    			uint256 _price, 
+    			uint32 _duration, 
+    			uint32 _drmtype,
+    			uint32 _drmstatus) {
 	    require(_id <= movies.length);
-	    url = movies[_id].url;
+	    _url = movies[_id].url;
+	    _thumb = movies[_id].thumb;
+	    _title = movies[_id].title;
+	    _descript = movies[_id].descript;
+	    _price = movies[_id].price;
+	    _duration = movies[_id].duration;
+	    _drmtype = movies[_id].drmtype;
+	    
+	    if(movies[_id].drmtype != 0) {
+	        mapping (uint256 => ViewToken) viewTokens = viewRightGrants[msg.sender];
+	        ViewToken storage viewToken = viewTokens[_id];
+	        _drmstatus = viewToken.status;
+	    } else {
+	    	_drmstatus = 0;
+	    }
     }
 
+    function getMovieUrl(uint _id) public constant returns(string _url){
+    	_url = movies[_id].url;
+    }
     
     function getNextAdvertUrl(uint _id) public constant returns (string _url) {
         //TODO
@@ -762,17 +798,14 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
             uint256 totalMovies =  movies.length;
             uint256 resultIndex = 0;
 
-            // We count on the fact that all cats have IDs starting at 1 and increasing
-            // sequentially up to the totalCat count.
             uint256 id;
 
-            for (id = 1; id <= totalMovies; id++) {
+            for (id = 0; id < totalMovies; id++) {
                 if (movieIndexToOwner[id] == _owner) {
                     result = id;
                     break;
                 }
             }
-
             return result;
         }
     }

@@ -25,9 +25,9 @@ const mapStateToProps = (state = {}) => {
     return {...state};
 };
 
-function findUrllForAccount(items, account) {
+function findUrllForMovieId(items, movieId) {
 	for(var i = 0; i < items.size; i++) {
-      if(items.get(i).item.account == account)
+      if(items.get(i).item.movieId == movieId)
         return items.get(i).item.url;
     }
 }
@@ -54,52 +54,75 @@ class Player extends Component {
 	    this.handleSubmitMovieUpdate = this.handleSubmitMovieUpdate.bind(this);
 	    this.handleChangePlayerAccount = this.handleChangePlayerAccount.bind(this);
 	    this.handleSubmitPlayerAccount = this.handleSubmitPlayerAccount.bind(this);
-	    this.handleSubmitMovieSelection = this.handleSubmitMovieSelection.bind(this);
+
+	    this.onMovieSelection = this.onMovieSelection.bind(this);
+	    
+	    this.onMoviePurchase = this.onMoviePurchase.bind(this);
+	    this.handleSubmitPurchaseDeferred = this.handleSubmitPurchaseDeferred.bind(this);
+	    
 	    this.getTotalMovies = this.getTotalMovies.bind(this);
 	    this.getMovie = this.getMovie.bind(this);
 	    this.updateMovieList = this.updateMovieList.bind(this);
 	    
+	    
+	    this.deferredEthTransaction = null;
 	    this.ethlite = new Ethlite(this, function(obj, event, data)  {
 	    	console.log("callback event=:" + event +" data=" + data);
 	    	if(event == 'account_nonce') {
-	    		obj.handleSubmitPlayerAccountDeferred(data);
+	    		//obj.handleSubmitPlayerAccountDeferred(data);
+	    		if(obj.deferredEthTransaction)
+	    			obj.deferredEthTransaction(data);
 	    	}
 	       	if (event == 'eth_call_response') {
 	    		var resp = JSON.parse(data);
 	    		var result = resp.result;
 	    		var cmd = resp.cmd;
-	    		if(cmd == 'getMovie') {
-	    			var id = findAbiIdForFunction(bcmc.abi, "getMovieUrl");
-	    			var index = obj.state.movieReqIndex;
-	    			var outputs = coder.decodeParameters(bcmc.abi[id]["outputs"], result);
-		    		var movieStr = outputs[0];
-		    		console.log(movieStr)
-		    		
-		    		var movieObj = JSON.parse(movieStr);
-		    		
-		    		var movieUrl = movieObj.sources[0];
-		    		var thumbUrl = movieObj.thumb;
-		    		
-		    		if (thumbUrl.indexOf('http://') === 0 || thumbUrl.indexOf('https://') === 0) {
-		    		    //do nothing
-		    		} else {
-		    			thumbUrl =  movieUrl.substr(0,movieUrl.lastIndexOf('/') + 1).concat(movieObj.thumb);
+	    		if(cmd == 'getMovieData') {
+		    		try{
+
+		    			var fnId = findAbiIdForFunction(bcmc.abi, "getMovieData");
+		    			var movieId = obj.state.movieReqIndex;
+		    			var outputs = coder.decodeParameters(bcmc.abi[fnId]["outputs"], result);
+			    		var movieUrl = outputs[0];
+			    		var movieThumb = outputs[1];
+			    		var movieTitle = outputs[2];
+			    		var movieDescript = outputs[3];
+			    		
+			    		var moviePrice = outputs[4];
+			    		var movieDuration = outputs[5];
+			    		var movieDrmType = outputs[6];
+			    		var movieDrmStatus = outputs[7];
+		    						    		
+			    		/// Obtain thumb url from relative or absolute path
+			    		if (movieThumb.indexOf('http://') === 0 || movieThumb.indexOf('https://') === 0) {
+			    		    //do nothing
+			    		} else {
+			    			movieThumb =  movieUrl.substr(0,movieUrl.lastIndexOf('/') + 1).concat(movieThumb);
+			    		}
+			    		obj.setState({playerSource:movieUrl})
+			       		console.log("url:" + movieUrl);
+			    		
+			    		/// Create movie object
+			       		var movieData = {
+			       			"category": "Drama",
+			                "title": movieTitle,
+			                "text": movieDescript,
+			                "image":  movieThumb,
+			                "url"  : movieUrl,
+			                "price" : moviePrice,
+			                "duration" : movieDuration,
+			                "drmtype" : movieDrmType,
+			                "movieId":movieId,
+			                "drmstatus" : movieDrmStatus
+		                }
+			       		
+			       		/// Dispatch movie to store
+			       		const {dispatch} = obj.props;
+				    	dispatch(AddItem(movieId, movieData));
+		    		} catch (err) {
+		    			console.log(err);
 		    		}
-		    		obj.setState({playerSource:movieUrl})
-		       		console.log("url:" + movieUrl);
-		    		
-		       		var itemData = {
-		       			"category": "Drama",
-		                "title": movieObj.title,
-		                "text": movieObj.description,
-		                "image":  thumbUrl,
-		                "url"  : movieUrl,
-		                "account":index
-	                }
-		       		const {dispatch} = obj.props;
-		       		var data = {item : itemData, itemId: itemData.account}
-			    	dispatch(AddItem(data));
-		       		obj.setState({movieReqIndex:index+1}); 
+		       		obj.setState({movieReqIndex:movieId+1}); 
 	    		} else if (cmd == 'totalMovies'){
 	    			var id = findAbiIdForFunction(bcmc.abi, "totalMovies");
 	    			var outputs = coder.decodeParameters(bcmc.abi[id]["outputs"], result);
@@ -148,7 +171,7 @@ class Player extends Component {
 
  getMovie(index)
  { 
-	  var id = findAbiIdForFunction(bcmc.abi, "getMovieUrl");
+	  var id = findAbiIdForFunction(bcmc.abi, "getMovieData");
 	  var movieIndex = index;
 		console.log(bcmc.abi[id]);
 		var codedCall = coder.encodeFunctionCall(bcmc.abi[id], [movieIndex.toString(16)]);
@@ -162,7 +185,7 @@ class Player extends Component {
 			  value: '0x00', 
 			  data: codedCall,
 		}
-		var request = {cmd:"getMovie", calldata: callObj}
+		var request = {cmd:"getMovieData", calldata: callObj}
 		this.ethlite.sendEthCallRequest(JSON.stringify(request))
   }
  
@@ -185,13 +208,16 @@ class Player extends Component {
 
   handleSubmitPlayerAccount(event) {
 		event.preventDefault(); 
+		
 		this.ethlite.sendEthGetAccount('0x' + publicKey.toString('hex'));
+		
+		this.deferredEthTransaction = this.handleSubmitPlayerAccountDeferred;
   }
   
   handleSubmitPlayerAccountDeferred(account_nonce) {
-	
-	console.log(bcmc.abi[2]);
-	var codedCall = coder.encodeFunctionCall(bcmc.abi[2], [ '0x' + publicKey.toString('hex'), '0x00', '0x00']);
+	var fnId = findAbiIdForFunction(bcmc.abi, "registerPlayer");
+	console.log(bcmc.abi[fnId]);
+	var codedCall = coder.encodeFunctionCall(bcmc.abi[fnId], [ '0x00', '0x00', '0x' + publicKey.toString('hex')]);
 	console.log("codedCall:" + codedCall);
 		
 	const txParams = {
@@ -211,27 +237,52 @@ class Player extends Component {
 	console.log('0x' + serializedTx.toString('hex'));
   }
 
-  handleSubmitMovieSelection(itemId) {
-	  console.dir("itemId=" + itemId)
+  
+  onMoviePurchase(movieId) {
+		//event.preventDefault(); 
+		this.ethlite.sendEthGetAccount('0x' + publicKey.toString('hex'));
+		
+		this.deferredEthTransaction = this.handleSubmitPurchaseDeferred;
+		this.deferredParam1 = movieId; //todo
   }
 
-  onMovieSelection(account){
-	var url = findUrllForAccount(this.props.items, account);
-		  console.log("onMovieSelection" + account + " url=" + url);
-	      this.setState({movieAccount: account});
-	      this.setState({playerSource:url});
+  handleSubmitPurchaseDeferred(account_nonce) {
+		var fnId = findAbiIdForFunction(bcmc.abi, "purchaseMovie");
+		console.log(bcmc.abi[fnId]);
+		var codedCall = coder.encodeFunctionCall(bcmc.abi[fnId], [this.deferredParam1.toString(16)]);
+		console.log("codedCall:" + codedCall);
+			
+		const txParams = {
+			  nonce: account_nonce,
+			  gasPrice: '0x09184e72a000', 
+			  gasLimit: '0x271000',
+			  to: '0x' + contractAddress.toString('hex'), 
+			  value: '0x00', 
+			  data: codedCall,
+		}
+		
+		const tx = new EthereumTx(txParams);
+		tx.sign(privateKey);
+		const serializedTx = tx.serialize();
+		
+		this.ethlite.sendEthRequest('0x' + serializedTx.toString('hex'));
+		console.log('0x' + serializedTx.toString('hex'));
   }
-	
+  
+  onMovieSelection(movieId){
+	var url = findUrllForMovieId(this.props.items, movieId);
+    console.log("onMovieSelection" + movieId + " url=" + url);
+    this.setState({playerSource:url});
+  }
+  
   render() {
 	
-
 	const {dispatch,items,isLoading,hasErrored} = this.props
 	//console.dir(this.props);
 	//console.dir(items);
 	var i;
 	var tmp = [];
 	for ( i=0; i < items.size; i++){ tmp.push(items.get(i).item);}
-
 	
 	if (hasErrored) {
 	      return <p>Sorry! There was an error loading the items</p>;
@@ -241,7 +292,6 @@ class Player extends Component {
 	      return <p>Loading…</p>;
 	}
 
-	
 	return (
 	 <Context.Provider value={this}>
 	  <div className={s.root}>
@@ -299,7 +349,7 @@ class Player extends Component {
   }
 }
 
-class Button extends React.Component {
+class ButtonSelect extends React.Component {
 	fireClick(itemId) {
 		console.dir("Im an alert " + itemId);
 	}  
@@ -309,6 +359,22 @@ class Button extends React.Component {
 	     <Context.Consumer>
 	     {(context) => <button className="button button-primary" onClick={() => {this.fireClick(itemId); context.onMovieSelection(itemId)}}>
 	        <i className="fa fa-chevron-right"></i> Select Movie
+	      </button>}
+	     </Context.Consumer>
+	   )
+   }
+}
+
+class ButtonPurchase extends React.Component {
+	fireClick(itemId) {
+		console.dir("Im an alert " + itemId);
+	}  
+	render() {
+		const {itemId} = this.props;
+	    return (
+	     <Context.Consumer>
+	     {(context) => <button className="button button-primary" onClick={() => {this.fireClick(itemId); context.onMoviePurchase(itemId)}}>
+	        <i className="fa fa-chevron-right"></i> Purchase
 	      </button>}
 	     </Context.Consumer>
 	   )
@@ -336,9 +402,11 @@ class CardHeader extends React.Component {
 	  render() {
 		  return (
 	      <div className="card-body">
-	        <h2>{this.props.title}</h2>
-	        <p className="body-content"> {this.props.text}</p>
-	        <Button itemId={this.props.itemId}/>
+	        <h2>{this.props.details.title}</h2>
+	        <p className="body-content"> {this.props.details.text}</p>
+	        <p className="body-content"> Duration: {this.props.details.duration} Price:{this.props.details.price} DRM:{this.props.details.drmtype}  DRM Status:{this.props.details.drmstatus}</p>
+	        <ButtonSelect itemId={this.props.details.itemId}/>
+	        <ButtonPurchase itemId={this.props.details.itemId}/>
 	      </div>
 	    )
 	  }
@@ -349,7 +417,7 @@ class Card extends React.Component {
 		return (
 	      <article className="card">
 	        <CardHeader category={this.props.details.category} image={this.props.details.image} />
-	        <CardBody title={this.props.details.title} text={this.props.details.text}  itemId={this.props.details.account}/>
+	        <CardBody details={this.props.details} title={this.props.details.title} text={this.props.details.text}  itemId={this.props.details.movieId}/>
 	      </article>
 	    )
 	  }

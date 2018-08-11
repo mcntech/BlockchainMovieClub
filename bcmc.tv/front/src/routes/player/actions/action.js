@@ -1,8 +1,7 @@
-export const AddItem = (data) => ({
+export const AddItem = (_itemId, _itemData) => ({
 	type: "ADD_ITEM",
-	item: data.item,
-	itemId:data.id,
-	account: data.account
+	item: _itemData,
+	itemId:_itemId,
 })
 
 export const RemItem = (data) => ({

@@ -30,6 +30,8 @@ class MovieMaker extends Component {
     		      MovieCoverArtUrl: "images/BigBuckBunny.jpg",
     			  MoviePricePerView: '4',
     			  MovieDuration: '120',
+    			  MovieDrmType : '0',
+    			  MovieDrmProvider: publicKey.toString('hex'),
     			  MovieMetaData: 'Enter Metadata'
      };
 
@@ -62,17 +64,18 @@ class MovieMaker extends Component {
 	console.log("handleSubmitMovieMakerAccountDeferred=:" + account_nonce);
 	console.log(bcmc.abi[1]);
 	
-	
-	var regData = { 
-	    "description" : this.state.MovieDescription,
-        "sources" : [ this.state. MovieStorageUrl],
-        "subtitle" : this.state ,
-        "thumb" : this.state.MovieCoverArtUrl,
-        "title" : this.state.MovieTitle
-    }
-	
+		
 	var id = this.ethlite.findAbiIdForFunction(bcmc.abi, "registerMovie")
-	var codedCall = coder.encodeFunctionCall(bcmc.abi[id], [JSON.stringify(regData), this.state.MoviePricePerView, '0x00']);
+	var codedCall = coder.encodeFunctionCall(bcmc.abi[id], 
+					 [this.state. MovieStorageUrl,
+					 this.state.MovieCoverArtUrl,
+					 this.state.MovieTitle,
+					 this.state.MovieDescription,
+					 this.state.MoviePricePerView, 
+					 this.state.MovieDuration, 
+					 this.state.MovieDrmType,
+					 this.state.MovieDrmProvider]);
+	
 	console.log("codedCall:" + codedCall);
 		
 	const txParams = {
@@ -188,6 +191,32 @@ class MovieMaker extends Component {
                     onChange={this.handleChange} />
 	              </label>
             </div>
+
+          <div className={s.formGroup}>
+            <label className={s.label} htmlFor="drmtype">
+             DRM Type(0-Disable 1-Enable):
+	          <input 
+	            className={s.input}
+	            type="text" 
+	            id="drmtype"
+	            name	="MovieDrmType"
+	            value={this.state.MovieDrmType} 
+                onChange={this.handleChange} />
+              </label>
+           </div>
+
+           <div className={s.formGroup}>
+           <label className={s.label} htmlFor="drmprovider">
+            DRM Provider Account:
+	          <input 
+	            className={s.input}
+	            type="text" 
+	            id="drmprovider"
+	            name	="MovieDrmProvider"
+	            value={this.state.MovieDrmProvider} 
+               onChange={this.handleChange} />
+             </label>
+          </div>
 
             <div className={s.formGroup}>
             <label className={s.label} htmlFor="metadata">
