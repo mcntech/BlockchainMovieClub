@@ -10,6 +10,7 @@ import {publicKeyOfPrivateKey, decryptWithPrivateKey} from '../../ethlite/drmcln
 import bcmc from '../../contracts/bcmc.json';
 import coder from 'web3-eth-abi';
 import {connect} from 'react-redux'
+import ReactPlayer from 'react-player'
 
 const EthereumTx = require('ethereumjs-tx');
 const privateKey = Buffer.from('4f3edf983ac636a65a842ce7c78d9aa706d3b113bce9c46f30d7d21715b23b1d', 'hex'); //test key
@@ -50,7 +51,8 @@ class Player extends Component {
 	    	movieReqIndex:0,
     		playerAccount: account.toString('hex'), 
     		playerSource: "https://media.w3.org/2010/05/sintel/trailer_hd.mp4",
-    		drmdata: {movieid:0, cgms:0, enckey: ""}
+    		drmdata: {movieid:0, cgms:0, enckey: ""},
+    		playing: true
 	    };
 	    
 	    this.handleSubmitMovieUpdate = this.handleSubmitMovieUpdate.bind(this);
@@ -346,7 +348,12 @@ class Player extends Component {
 
 	   	     <div>
 	           {/*<VideoPlayer playsInline fluid={false}  width={320} height={180} src={this.state.playerSource} />*/}
-			   <Video src={this.state.playerSource}/>
+			   {/*<Video src={this.state.playerSource}/>*/}
+			   <ReactPlayer     
+			   		width='100%'
+		            height='100%'
+		            url={this.state.playerSource}
+			   		playing={this.state.playing} src={this.state.playerSource} controls={true} />
              </div>
 
 	          <form onSubmit={this.handleSubmitPlayerAccount}>
