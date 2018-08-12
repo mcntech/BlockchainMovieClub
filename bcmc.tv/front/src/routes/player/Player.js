@@ -6,13 +6,14 @@ import withStyles from 'isomorphic-style-loader/lib/withStyles';
 import s from "./Player.css";
 //import { subscribeClntRequest, sendEthRequest, sendEthGetAccount, sendEthCall } from '.../../ethlite/Api';
 import Ethlite from '../../ethlite/Api';
+import {publicKeyOfPrivateKey, decryptWithPrivateKey} from '../../ethlite/drmclnt';
 import bcmc from '../../contracts/bcmc.json';
 import coder from 'web3-eth-abi';
 import {connect} from 'react-redux'
 
 const EthereumTx = require('ethereumjs-tx');
 const privateKey = Buffer.from('4f3edf983ac636a65a842ce7c78d9aa706d3b113bce9c46f30d7d21715b23b1d', 'hex'); //test key
-const publicKey = Buffer.from('90f8bf6a479f320ead074411a4b0e7944ea8c9c1', 'hex');
+const account = Buffer.from('90f8bf6a479f320ead074411a4b0e7944ea8c9c1', 'hex');
 const contractAddress = Buffer.from('cfeb869f69431e42cdb54a4f4f105c19c080a601', 'hex');
 		
 //<link rel="stylesheet" href="https://video-react.github.io/assets/video-react.css" />
@@ -47,8 +48,9 @@ class Player extends Component {
 	    this.state = {
 	    	totalMovies:0,
 	    	movieReqIndex:0,
-    		playerAccount: publicKey.toString('hex'), 
+    		playerAccount: account.toString('hex'), 
     		playerSource: "https://media.w3.org/2010/05/sintel/trailer_hd.mp4",
+    		drmdata: {movieid:0, cgms:0, enckey: ""}
 	    };
 	    
 	    this.handleSubmitMovieUpdate = this.handleSubmitMovieUpdate.bind(this);
@@ -59,6 +61,7 @@ class Player extends Component {
 	    
 	    this.onMoviePurchase = this.onMoviePurchase.bind(this);
 	    this.handleSubmitPurchaseDeferred = this.handleSubmitPurchaseDeferred.bind(this);
+	    this.getMovieDrm = this.getMovieDrm.bind(this);
 	    
 	    this.getTotalMovies = this.getTotalMovies.bind(this);
 	    this.getMovie = this.getMovie.bind(this);
@@ -123,6 +126,22 @@ class Player extends Component {
 		    			console.log(err);
 		    		}
 		       		obj.setState({movieReqIndex:movieId+1}); 
+	    		
+	    		} else if (cmd == 'getMovieDrm'){
+		    		try{
+		    			var fnId = findAbiIdForFunction(bcmc.abi, "getMovieDrm");
+		    			var outputs = coder.decodeParameters(bcmc.abi[fnId]["outputs"], result);
+			    		var _movieid = outputs[0];
+			    		var _cgms = outputs[1];
+			    		var _drm = outputs[2];
+			    		console.log(`movieid:${_movieid} cgms:${_cgms} drm:${_drm} privateKey: ${privateKey.toString('hex')}`);
+			    		decryptWithPrivateKey(privateKey, JSON.parse(_drm)).then( _enckey => {
+				    		console.log(`enckey:${_enckey}`);
+				    		obj.state.drmdata = {movieid: _movieid, cgms: _cgms, enckey: _enckey};
+			    		});
+		    		} catch (err) {
+		    			console.log(err);
+		    		}
 	    		} else if (cmd == 'totalMovies'){
 	    			var id = findAbiIdForFunction(bcmc.abi, "totalMovies");
 	    			var outputs = coder.decodeParameters(bcmc.abi[id]["outputs"], result);
@@ -158,7 +177,7 @@ class Player extends Component {
 		console.log("codedCall:" + codedCall);
 		
 		const callObj = {
-			  from:'0x' + publicKey.toString('hex'), 
+			  from:'0x' + this.state.playerAccount.toString('hex'), 
 			  gasPrice: '0x09184e72a000', 
 			  gasLimit: '0x271000',
 			  to: '0x' + contractAddress.toString('hex'), 
@@ -178,7 +197,7 @@ class Player extends Component {
 		console.log("codedCall:" + codedCall);
 		
 		const callObj = {
-			  from:'0x' + publicKey.toString('hex'), 
+			  from:'0x' + this.state.playerAccount.toString('hex'), 
 			  gasPrice: '0x09184e72a000', 
 			  gasLimit: '0x271000',
 			  to: '0x' + contractAddress.toString('hex'), 
@@ -189,6 +208,25 @@ class Player extends Component {
 		this.ethlite.sendEthCallRequest(JSON.stringify(request))
   }
  
+ getMovieDrm(index)
+ { 
+	  var id = findAbiIdForFunction(bcmc.abi, "getMovieDrm");
+	  var movieIndex = index;
+		console.log(bcmc.abi[id]);
+		var codedCall = coder.encodeFunctionCall(bcmc.abi[id], [movieIndex.toString(16)]);
+		console.log("codedCall:" + codedCall);
+		
+		const callObj = {
+			  from:'0x' + this.state.playerAccount.toString('hex'), 
+			  gasPrice: '0x09184e72a000', 
+			  gasLimit: '0x271000',
+			  to: '0x' + contractAddress.toString('hex'), 
+			  value: '0x00', 
+			  data: codedCall,
+		}
+		var request = {cmd:"getMovieDrm", calldata: callObj}
+		this.ethlite.sendEthCallRequest(JSON.stringify(request))
+  }
   updateMovieList()
   { 
 	  for (var i=0; i < this.state.totalMovies; i++){
@@ -209,7 +247,7 @@ class Player extends Component {
   handleSubmitPlayerAccount(event) {
 		event.preventDefault(); 
 		
-		this.ethlite.sendEthGetAccount('0x' + publicKey.toString('hex'));
+		this.ethlite.sendEthGetAccount('0x' + this.state.playerAccount.toString('hex'));
 		
 		this.deferredEthTransaction = this.handleSubmitPlayerAccountDeferred;
   }
@@ -217,7 +255,9 @@ class Player extends Component {
   handleSubmitPlayerAccountDeferred(account_nonce) {
 	var fnId = findAbiIdForFunction(bcmc.abi, "registerPlayer");
 	console.log(bcmc.abi[fnId]);
-	var codedCall = coder.encodeFunctionCall(bcmc.abi[fnId], [ '0x00', '0x00', '0x' + publicKey.toString('hex')]);
+	var publicKeyStr = publicKeyOfPrivateKey(privateKey.toString('hex'));
+	console.log("publickey:" + publicKeyStr);
+	var codedCall = coder.encodeFunctionCall(bcmc.abi[fnId], [ '0x00', '0x00', publicKeyStr]);
 	console.log("codedCall:" + codedCall);
 		
 	const txParams = {
@@ -238,12 +278,13 @@ class Player extends Component {
   }
 
   
-  onMoviePurchase(movieId) {
+  onMoviePurchase(movieId, price) {
 		//event.preventDefault(); 
-		this.ethlite.sendEthGetAccount('0x' + publicKey.toString('hex'));
+		this.ethlite.sendEthGetAccount('0x' + this.state.playerAccount.toString('hex'));
 		
 		this.deferredEthTransaction = this.handleSubmitPurchaseDeferred;
 		this.deferredParam1 = movieId; //todo
+		this.deferredParam2 = price; //todo
   }
 
   handleSubmitPurchaseDeferred(account_nonce) {
@@ -257,7 +298,7 @@ class Player extends Component {
 			  gasPrice: '0x09184e72a000', 
 			  gasLimit: '0x271000',
 			  to: '0x' + contractAddress.toString('hex'), 
-			  value: '0x00', 
+			  value: this.deferredParam2.toString(16), 
 			  data: codedCall,
 		}
 		
@@ -273,6 +314,8 @@ class Player extends Component {
 	var url = findUrllForMovieId(this.props.items, movieId);
     console.log("onMovieSelection" + movieId + " url=" + url);
     this.setState({playerSource:url});
+    
+    this.getMovieDrm(movieId);
   }
   
   render() {
@@ -366,14 +409,14 @@ class ButtonSelect extends React.Component {
 }
 
 class ButtonPurchase extends React.Component {
-	fireClick(itemId) {
-		console.dir("Im an alert " + itemId);
+	fireClick(itemId, price) {
+		console.dir("ButtonPurchase " + itemId + ' price ' + price);
 	}  
 	render() {
-		const {itemId} = this.props;
+		const {itemId, price} = this.props;
 	    return (
 	     <Context.Consumer>
-	     {(context) => <button className="button button-primary" onClick={() => {this.fireClick(itemId); context.onMoviePurchase(itemId)}}>
+	     {(context) => <button className="button button-primary" onClick={() => {this.fireClick(itemId); context.onMoviePurchase(itemId, price)}}>
 	        <i className="fa fa-chevron-right"></i> Purchase
 	      </button>}
 	     </Context.Consumer>
@@ -383,7 +426,7 @@ class ButtonPurchase extends React.Component {
 
 class CardHeader extends React.Component {
 	  render() {
-	    const { image, category } = this.props;
+	    const { image, category } = this.props.details;
 	    var style = { 
 	        backgroundImage: 'url(' + image + ')',
 	        width: "100%",
@@ -405,8 +448,8 @@ class CardHeader extends React.Component {
 	        <h2>{this.props.details.title}</h2>
 	        <p className="body-content"> {this.props.details.text}</p>
 	        <p className="body-content"> Duration: {this.props.details.duration} Price:{this.props.details.price} DRM:{this.props.details.drmtype}  DRM Status:{this.props.details.drmstatus}</p>
-	        <ButtonSelect itemId={this.props.details.itemId}/>
-	        <ButtonPurchase itemId={this.props.details.itemId}/>
+	        <ButtonSelect itemId={this.props.details.movieId}/>
+	        <ButtonPurchase itemId={this.props.details.movieId} price={this.props.details.price}/>
 	      </div>
 	    )
 	  }
@@ -416,8 +459,8 @@ class Card extends React.Component {
 	  render() {
 		return (
 	      <article className="card">
-	        <CardHeader category={this.props.details.category} image={this.props.details.image} />
-	        <CardBody details={this.props.details} title={this.props.details.title} text={this.props.details.text}  itemId={this.props.details.movieId}/>
+	        <CardHeader details={this.props.details} />
+	        <CardBody details={this.props.details}/>
 	      </article>
 	    )
 	  }

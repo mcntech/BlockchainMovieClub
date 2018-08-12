@@ -44,26 +44,21 @@ export function encryptWithPublicKey(publicKey, message) {
 }
 
 //
-// 32 byte private key
+// 32 byte private key without 0x prefix
 // encrypted (iv,ephem, pub mac) as strings
 //
 export function decryptWithPrivateKey(privateKey, encrypted) {
-  // encrypted = parse(encrypted);
-
-  // remove trailing '0x' from privateKey
-  const twoStripped = removeTrailing0x(privateKey);
-
-  const encryptedBuffer = {
-    iv: new Buffer(encrypted.iv, 'hex'),
-    ephemPublicKey: new Buffer(encrypted.ephemPublicKey, 'hex'),
-    ciphertext: new Buffer(encrypted.ciphertext, 'hex'),
-    mac: new Buffer(encrypted.mac, 'hex'),
-  };
-
-  return Ecccrypto.decrypt(
-    new Buffer(twoStripped, 'hex'),
-    encryptedBuffer,
-  ).then(decryptedBuffer => decryptedBuffer.toString());
+	console.log("at 1");console.log(encrypted);
+	const encryptedBuffer = {
+	    iv: new Buffer(encrypted.iv, 'hex'),
+	    ephemPublicKey: new Buffer(encrypted.ephemPublicKey, 'hex'),
+	    ciphertext: new Buffer(encrypted.ciphertext, 'hex'),
+	    mac: new Buffer(encrypted.mac, 'hex'),
+	  };
+   console.log("at 2");
+   return Ecccrypto.decrypt(
+		  privateKey, encryptedBuffer
+   ).then(decryptedBuffer => decryptedBuffer.toString());
 }
 
 // Test

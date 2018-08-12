@@ -12,7 +12,8 @@ const EthereumTx = require('ethereumjs-tx');
 const privateKey = Buffer.from('6cbed15c793ce57650b9877cf6fa156fbef513c4e6134f022a85b1ffdd59b2a1', 'hex'); //test key
 const publicKey = Buffer.from('ffcf8fdee72ac11b5c542428b35eef5769c409f0', 'hex');
 const contractAddress = Buffer.from('cfeb869f69431e42cdb54a4f4f105c19c080a601', 'hex');
-
+const contentEncKey = 'F20DF10DF10DF10DF10DF10DF10DF10D';
+	
 const GASS_PRICE='0x01000000000';
 
 <link rel="stylesheet" href="https://video-react.github.io/assets/video-react.css" />
@@ -31,7 +32,9 @@ class MovieMaker extends Component {
     			  MoviePricePerView: '4',
     			  MovieDuration: '120',
     			  MovieDrmType : '0',
+    			  MovieDrmId : '123',
     			  MovieDrmProvider: publicKey.toString('hex'),
+    			  MovieContentEncKey: contentEncKey.toString('hex'),
     			  MovieMetaData: 'Enter Metadata'
      };
 
@@ -74,6 +77,7 @@ class MovieMaker extends Component {
 					 this.state.MoviePricePerView, 
 					 this.state.MovieDuration, 
 					 this.state.MovieDrmType,
+					 this.state.MovieDrmId,
 					 this.state.MovieDrmProvider]);
 	
 	console.log("codedCall:" + codedCall);
@@ -93,6 +97,10 @@ class MovieMaker extends Component {
 	
 	this.ethlite.sendEthRequest('0x' + serializedTx.toString('hex'));
 	console.log('0x' + serializedTx.toString('hex'));
+	
+	var request = {drmid: this.state.MovieDrmId, enckey: this.state.MovieContentEncKey};
+	// Register DRM provider
+	this.ethlite.sendDrmUpdateEncKey(JSON.stringify(request));
   }
 
   render() {
@@ -206,6 +214,19 @@ class MovieMaker extends Component {
            </div>
 
            <div className={s.formGroup}>
+           <label className={s.label} htmlFor="drmid">
+            DRM ID:
+	          <input 
+	            className={s.input}
+	            type="text" 
+	            id="drmid"
+	            name	="MovieDrmId"
+	            value={this.state.MovieDrmId} 
+               onChange={this.handleChange} />
+             </label>
+          </div>
+          
+           <div className={s.formGroup}>
            <label className={s.label} htmlFor="drmprovider">
             DRM Provider Account:
 	          <input 
@@ -218,7 +239,19 @@ class MovieMaker extends Component {
              </label>
           </div>
 
-            <div className={s.formGroup}>
+          <div className={s.formGroup}>
+          <label className={s.label} htmlFor="contentenkey">
+           DRM Content Encypion Key:
+	          <input 
+	            className={s.input}
+	            type="text" 
+	            id="contentenkey"
+	            name	="MovieContentEncKey"
+	            value={this.state.MovieContentEncKey} 
+              onChange={this.handleChange} />
+            </label>
+         </div>
+         <div className={s.formGroup}>
             <label className={s.label} htmlFor="metadata">
               Metadata:
 	          <input 

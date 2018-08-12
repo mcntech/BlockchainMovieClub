@@ -67,6 +67,13 @@ class Ethlite
 	  this.socket.emit("eth_call_request", data);
 	}
 	
+	
+	sendDrmUpdateEncKey(data)
+	{
+	  console.log("drm_update_enckey=:" + data);
+	  this.socket.emit("drm_update_enckey", data);
+	}
+	
 	findAbiIdForFunction(abi, fnName) {
 		for(var i = 0; i < abi.length; i++) {
 	      if(abi[i].type == "function" && abi[i].name == fnName)

@@ -63,7 +63,7 @@ interface ERC721 /* is ERC165 */ {
     /// @param _to The new owner
     /// @param _tokenId The NFT to transfer
     /// @param data Additional data with no specified format, sent in call to `_to`
-    function safeTransferFrom(address _from, address _to, uint256 _tokenId, bytes data) public;
+    function safeTransferFrom(address _from, address _to, uint256 _tokenId, bytes data) external;
 
     /// @notice Transfers the ownership of an NFT from one address to another address
     /// @dev This works identically to the other function with an extra data parameter,
@@ -71,7 +71,7 @@ interface ERC721 /* is ERC165 */ {
     /// @param _from The current owner of the NFT
     /// @param _to The new owner
     /// @param _tokenId The NFT to transfer
-    function safeTransferFrom(address _from, address _to, uint256 _tokenId) public;
+    function safeTransferFrom(address _from, address _to, uint256 _tokenId) external;
 
     /// @notice Transfer ownership of an NFT -- THE CALLER IS RESPONSIBLE
     ///  TO CONFIRM THAT `_to` IS CAPABLE OF RECEIVING NFTS OR ELSE
@@ -83,7 +83,7 @@ interface ERC721 /* is ERC165 */ {
     /// @param _from The current owner of the NFT
     /// @param _to The new owner
     /// @param _tokenId The NFT to transfer
-    function transferFrom(address _from, address _to, uint256 _tokenId) public;
+    function transferFrom(address _from, address _to, uint256 _tokenId) external;
 
     /// @notice Change or reaffirm the approved address for an NFT
     /// @dev The zero address indicates there is no approved address.
@@ -99,7 +99,7 @@ interface ERC721 /* is ERC165 */ {
     ///  multiple operators per owner.
     /// @param _operator Address to add to the set of authorized operators
     /// @param _approved True if the operator is approved, false to revoke approval
-    function setApprovalForAll(address _operator, bool _approved) public;
+    function setApprovalForAll(address _operator, bool _approved) external;
 
     /// @notice Get the approved address for a single NFT
     /// @dev Throws if `_tokenId` is not a valid NFT.
@@ -263,8 +263,8 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
 
 
     event NewMovie(address owner, uint256 movieId);
-    event MovieViewTokenRequested(address drmprovider, address buyer, string buyerkey, uint256 movieid);
-    event MovieViewTokenGranted(address player, uint256 movieId);
+    event MovieViewTokenRequested(address drmprovider, address buyer, string buyerkey, uint32 movieid, uint32 drmid);
+    event MovieViewTokenGranted(address player, uint32 movieId);
         
     struct Movie {      
     	string     url;
@@ -276,6 +276,7 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
 		uint32     drmtype;
 	    uint32     rating;
 	    uint32     viewers;
+	    uint32     drmid;
 	    address    drmprovider;
     }
 
@@ -340,7 +341,7 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     // Mapping from owner to operator approvals
     mapping (address => mapping (address => bool)) internal operatorApprovals;
    
-    /// @dev A mapping from player id to ViewTokens
+    /// @dev A mapping from player address to ViewTokens
     mapping (address => mapping (uint256 => ViewToken)) public viewRightGrants;
 
 
@@ -372,7 +373,7 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     {
         address prevOwner = owner;
         owner = _newOwner;
-        OwnershipTransferred(prevOwner, _newOwner);
+        emit OwnershipTransferred(prevOwner, _newOwner);
     }
     
     function setOwnerCut(uint256 _ownerCut) onlyOwner{
@@ -391,6 +392,7 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     		uint256 _price, 
     		uint32 _duration,
     		uint32 _drmtype,
+    		uint32 _drmid,
     		address _drmprovider) public {
     	
     	Movie memory movie = Movie({
@@ -403,6 +405,7 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     			drmtype : _drmtype,
     			rating:0, 
     			viewers:0,
+    			drmid:_drmid,
     			drmprovider: _drmprovider});
 	    uint256 movieId = movies.push(movie) - 1;
 	    //movies[movieId] = movie;	 
@@ -463,31 +466,31 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     }
 
     /// @dev Request viewToken from content provider.
-    /// @param id is moveie id set at the time of registratoin
-    function requestViewToken(address drmprovider, address buyer, string buyerkey, uint256 id) internal {
+    /// @param movieid is moveie id set at the time of registratoin
+    function requestViewToken(address drmprovider, address buyer, string buyerkey, uint32 movieid, uint32 drmid) internal {
         mapping (uint256 => ViewToken) viewTokens = viewRightGrants [buyer];
         
         /// Create a token with drm pending
-        ViewToken memory viewToken = ViewToken({movieId:uint32(id), cgms:1, status:1, drm:"pending"});
-        viewTokens[id] = viewToken;
-        MovieViewTokenRequested(drmprovider, buyer, buyerkey, id);
+        ViewToken memory viewToken = ViewToken({movieId:uint32(movieid), cgms:1, status:1, drm:"pending"});
+        viewTokens[movieid] = viewToken;
+        emit MovieViewTokenRequested(drmprovider, buyer, buyerkey, movieid, drmid);
     }
 
     /// @dev Grant viewToken for the player.
     /// @param id is moveie id set at the time of registratoin
-    function grantViewToken( address buyer, uint256 id, string _drm) public {
+    function grantViewToken( address buyer, uint32 id, string _drm) public {
         require(id <= movies.length && msg.sender == movies[id].drmprovider);
         mapping (uint256 => ViewToken) viewTokens = viewRightGrants [buyer];
         
         /// Fill the view token with DRM data
-        ViewToken memory viewToken = ViewToken({movieId:uint32(id), cgms:1, status:2, drm:_drm});
+        ViewToken memory viewToken = ViewToken({movieId:id, cgms:1, status:2, drm:_drm});
         viewTokens[id] = viewToken;
         emit MovieViewTokenGranted(buyer, id);
     }
     
     /// @dev Purchase a movie.
     /// @param id is movie id set at the time of registratoin
-    function purchaseMovie(uint256 id) public payable
+    function purchaseMovie(uint32 id) public payable
     {
         uint256 _bidAmount = msg.value;
         address buyer = msg.sender;
@@ -519,10 +522,10 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
             msg.sender.transfer(bidExcess);
         }
         // Request view right
-        requestViewToken(movie.drmprovider, buyer, player.publickey ,id);
+        requestViewToken(movie.drmprovider, buyer, player.publickey,id, movie.drmid);
     }
 
-    function getPurchasedMovie(uint256 index) public constant returns (uint32 movieid, uint32 cgms, string drm)
+    function getMovieDrm(uint256 index) public constant returns (uint32 movieid, uint32 cgms, string drm)
     {
        mapping (uint256 => ViewToken) viewTokens = viewRightGrants[msg.sender];
         ViewToken storage token = viewTokens[index];
@@ -701,7 +704,7 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     }
 
     /// @dev Required for ERC-721 compliance
-    function safeTransferFrom(address _from, address _to, uint256 _tokenId, bytes _data) public canTransfer(_tokenId) {
+    function safeTransferFrom(address _from, address _to, uint256 _tokenId, bytes _data) external canTransfer(_tokenId) {
         transferFrom(_from, _to, _tokenId);
         require(checkAndCallSafeTransfer(_from, _to, _tokenId, _data)); 
         
@@ -709,9 +712,11 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
 
 
     /// @dev Required for ERC-721 compliance.
-    function safeTransferFrom(address _from, address _to, uint256 _tokenId) public
+    function safeTransferFrom(address _from, address _to, uint256 _tokenId) external
     {
-        safeTransferFrom(_from, _to, _tokenId, "");
+       // safeTransferFrom(_from, _to, _tokenId, "");
+       transferFrom(_from, _to, _tokenId);
+       require(checkAndCallSafeTransfer(_from, _to, _tokenId, ""));         
     }
     
     /// @dev Required for ERC-721 compliance.
@@ -723,12 +728,12 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     /// @dev Required for ERC-721 compliance.
     function approve(address _to, uint256 _tokenId) public
     {
-        address owner = ownerOf(_tokenId);
-        require(_to != owner);
-        require(msg.sender == owner || isApprovedForAll(owner, msg.sender));
+        address tokenowner = ownerOf(_tokenId);
+        require(_to != tokenowner);
+        require(msg.sender == tokenowner || isApprovedForAll(tokenowner, msg.sender));
 
         tokenApprovals[_tokenId] = _to;
-        emit Approval(owner, _to, _tokenId);
+        emit Approval(tokenowner, _to, _tokenId);
     }
     
     /// @dev Required for ERC-721 compliance.
@@ -778,9 +783,7 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     /// @dev Required for ERC-721 compliance.
     function tokenByIndex(uint256 _index) external view returns (uint256 resultToken)
     {
-        uint256 totalMovies =  movies.length;
-
-        if(totalMovies > 0 && _index <= totalMovies) {
+        if(_index <= movies.length) {
             resultToken = _index;
         }
         resultToken = 0;
@@ -792,15 +795,13 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
         uint256 tokenCount = balanceOf(_owner);
         uint256 result = 0;
         if (tokenCount == 0) {
-            // Return an empty array
             return result;
         } else {
-            uint256 totalMovies =  movies.length;
             uint256 resultIndex = 0;
 
             uint256 id;
 
-            for (id = 0; id < totalMovies; id++) {
+            for (id = 0; id < movies.length; id++) {
                 if (movieIndexToOwner[id] == _owner) {
                     result = id;
                     break;
