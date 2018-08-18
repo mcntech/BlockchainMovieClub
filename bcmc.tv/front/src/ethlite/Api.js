@@ -70,8 +70,8 @@ class Ethlite
 	
 	sendDrmUpdateEncKey(data)
 	{
-	  console.log("drm_update_enckey=:" + data);
-	  this.socket.emit("drm_update_enckey", data);
+	  console.log("drm_update_drmtoken=:" + data);
+	  this.socket.emit("drm_update_drmtoken", data);
 	}
 	
 	findAbiIdForFunction(abi, fnName) {

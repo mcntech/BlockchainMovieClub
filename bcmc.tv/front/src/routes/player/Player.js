@@ -27,10 +27,10 @@ const mapStateToProps = (state = {}) => {
     return {...state};
 };
 
-function findUrllForMovieId(items, movieId) {
+function findItemForMovieId(items, movieId) {
 	for(var i = 0; i < items.size; i++) {
       if(items.get(i).item.movieId == movieId)
-        return items.get(i).item.url;
+        return items.get(i).item;
     }
 }
 
@@ -48,13 +48,13 @@ class Player extends Component {
 	    super(props);
 	    this.state = {
 	    	totalMovies:0,
-	    	movieReqIndex:0,
     		playerAccount: account.toString('hex'), 
-    		playerSource: "https://media.w3.org/2010/05/sintel/trailer_hd.mp4",
-    		drmdata: {movieid:0, cgms:0, enckey: ""},
-    		playing: true
+    		//playerSource: "https://media.w3.org/2010/05/sintel/trailer_hd.mp4",
+    		playerSource: null,//"https://media.axprod.net/TestVectors/v7-MultiDRM-SingleKey/Manifest_ClearKey.mpd",
+    		protData: null,//{ "org.w3.clearkey": {"clearkeys": { "nrQFDeRLSAKTLifXUIPiZg": "FmY0xnWCPCNaSpRG-tUuTQ"}}},
+    		playing: false //true
 	    };
-	    
+    	this.movieReqIndex = 0;
 	    this.handleSubmitMovieUpdate = this.handleSubmitMovieUpdate.bind(this);
 	    this.handleChangePlayerAccount = this.handleChangePlayerAccount.bind(this);
 	    this.handleSubmitPlayerAccount = this.handleSubmitPlayerAccount.bind(this);
@@ -68,7 +68,8 @@ class Player extends Component {
 	    this.getTotalMovies = this.getTotalMovies.bind(this);
 	    this.getMovie = this.getMovie.bind(this);
 	    this.updateMovieList = this.updateMovieList.bind(this);
-	    
+	    this.startMovie = this.startMovie.bind(this); 
+	    this.stopMovie = this.stopMovie.bind(this);
 	    
 	    this.deferredEthTransaction = null;
 	    this.ethlite = new Ethlite(this, function(obj, event, data)  {
@@ -86,7 +87,8 @@ class Player extends Component {
 		    		try{
 
 		    			var fnId = findAbiIdForFunction(bcmc.abi, "getMovieData");
-		    			var movieId = obj.state.movieReqIndex;
+		    			//var movieId = obj.state.movieReqIndex;
+		    			var movieId = obj.movieReqIndex;
 		    			var outputs = coder.decodeParameters(bcmc.abi[fnId]["outputs"], result);
 			    		var movieUrl = outputs[0];
 			    		var movieThumb = outputs[1];
@@ -104,8 +106,6 @@ class Player extends Component {
 			    		} else {
 			    			movieThumb =  movieUrl.substr(0,movieUrl.lastIndexOf('/') + 1).concat(movieThumb);
 			    		}
-			    		obj.setState({playerSource:movieUrl})
-			       		console.log("url:" + movieUrl);
 			    		
 			    		/// Create movie object
 			       		var movieData = {
@@ -120,14 +120,15 @@ class Player extends Component {
 			                "movieId":movieId,
 			                "drmstatus" : movieDrmStatus
 		                }
-			       		
+			       		console.log('movieData:'); console.log(movieData);
 			       		/// Dispatch movie to store
 			       		const {dispatch} = obj.props;
 				    	dispatch(AddItem(movieId, movieData));
 		    		} catch (err) {
 		    			console.log(err);
 		    		}
-		       		obj.setState({movieReqIndex:movieId+1}); 
+		       		//obj.setState({movieReqIndex:movieId+1}); 
+		    		obj.movieReqIndex = movieId+1;
 	    		
 	    		} else if (cmd == 'getMovieDrm'){
 		    		try{
@@ -135,11 +136,15 @@ class Player extends Component {
 		    			var outputs = coder.decodeParameters(bcmc.abi[fnId]["outputs"], result);
 			    		var _movieid = outputs[0];
 			    		var _cgms = outputs[1];
-			    		var _drm = outputs[2];
-			    		console.log(`movieid:${_movieid} cgms:${_cgms} drm:${_drm} privateKey: ${privateKey.toString('hex')}`);
-			    		decryptWithPrivateKey(privateKey, JSON.parse(_drm)).then( _enckey => {
-				    		console.log(`enckey:${_enckey}`);
-				    		obj.state.drmdata = {movieid: _movieid, cgms: _cgms, enckey: _enckey};
+			    		var _drmToken = outputs[2];
+			    		console.log(`movieid:${_movieid} cgms:${_cgms} drm:${_drmToken} privateKey: ${privateKey.toString('hex')}`);
+			    		decryptWithPrivateKey(privateKey, JSON.parse(_drmToken)).then( _drmDecToken => {
+				    		var item = findItemForMovieId(obj.props.items, _movieid);
+				    		if(item != null) {
+				    			console.log('_drmDecToken');console.log(_drmDecToken);
+				    			var drmDecToken = JSON.parse(_drmDecToken);
+				    			obj.startMovie(item.url, drmDecToken);
+				    		}
 			    		});
 		    		} catch (err) {
 		    			console.log(err);
@@ -169,6 +174,28 @@ class Player extends Component {
     this.setState({playerAccount: event.target.playerAccount});
   }
 
+  
+  stopMovie()
+  {
+	  this.setState({playerSource: null});
+	  /*if(typeof this.player != undefined &&  this.player!= null) {
+		  console.log(this.player);
+		  if(typeof this.player.stop == 'function')
+			  this.player.stop();
+	  }*/
+	  
+  }
+  startMovie (url, drmToken)
+  {
+	console.log('drmToken');console.log(drmToken);
+	
+	this.stopMovie();
+	
+	if(drmToken != null) {
+		this.setState({protData: drmToken});
+	}
+	this.setState({playerSource: url});
+  }
   
   getTotalMovies() {
 	  //event.preventDefault(); 
@@ -231,6 +258,7 @@ class Player extends Component {
   }
   updateMovieList()
   { 
+	  this.movieReqIndex = 0;
 	  for (var i=0; i < this.state.totalMovies; i++){
 		  this.getMovie(i);
 	  }
@@ -313,11 +341,22 @@ class Player extends Component {
   }
   
   onMovieSelection(movieId){
-	var url = findUrllForMovieId(this.props.items, movieId);
-    console.log("onMovieSelection" + movieId + " url=" + url);
-    this.setState({playerSource:url});
-    
-    this.getMovieDrm(movieId);
+	var item = findItemForMovieId(this.props.items, movieId);
+    if(item != null) {
+		console.log("onMovieSelection" + movieId + " url=" + item.url + ' drmtype=' + item.drmtype);
+	    
+		if(item.drmtype == 1) {
+			this.getMovieDrm(movieId);
+		} else {
+			// this.setState({playerSource:item.url});
+			this.startMovie(item.url, null);
+		}
+    }
+  }
+ 
+
+  ref = player => {
+	    this.player = player
   }
   
   render() {
@@ -345,17 +384,19 @@ class Player extends Component {
 		      <header className="Player-header">
 			      <h1 className="Player-title">Demo Player</h1>
 	          </header>
-
-	   	     <div>
-	           {/*<VideoPlayer playsInline fluid={false}  width={320} height={180} src={this.state.playerSource} />*/}
-			   {/*<Video src={this.state.playerSource}/>*/}
-			   <ReactPlayer     
-			   		width='100%'
-		            height='100%'
-		            url={this.state.playerSource}
-			   		playing={this.state.playing} src={this.state.playerSource} controls={true} />
-             </div>
-
+		   	  <div>
+				   <ReactPlayer     
+				   		ref={this.ref}
+				   		width='100%'
+			            height='100%'
+			            url={this.state.playerSource}
+				   		protdata = {this.state.protData}
+				   		playing={this.state.playing} 
+				   		controls={true} />
+					  
+	          </div>
+		
+			  <PlayControls enable={this.state.playerSource != null} />
 	          <form onSubmit={this.handleSubmitPlayerAccount}>
 			     
 				 <div className={s.formGroup}>
@@ -399,6 +440,20 @@ class Player extends Component {
   }
 }
 
+class PlayControls extends React.Component {
+	render() {
+		if(this.props.enable){
+			return (
+				<Context.Consumer>
+				{(context) => <button onClick={() => context.stopMovie()}> Stop</button>}
+			</Context.Consumer>
+			)
+		} else {
+			return null;
+		}
+	}
+}
+
 class ButtonSelect extends React.Component {
 	fireClick(itemId) {
 		console.dir("Im an alert " + itemId);
@@ -417,13 +472,14 @@ class ButtonSelect extends React.Component {
 
 class ButtonPurchase extends React.Component {
 	fireClick(itemId, price) {
-		console.dir("ButtonPurchase " + itemId + ' price ' + price);
+		console.dir('ButtonPurchase:fireClick id:' + itemId + ' price:' + price);
 	}  
+
 	render() {
 		const {itemId, price} = this.props;
 	    return (
 	     <Context.Consumer>
-	     {(context) => <button className="button button-primary" onClick={() => {this.fireClick(itemId); context.onMoviePurchase(itemId, price)}}>
+	     {(context) => <button className="button button-primary" onClick={() => {this.fireClick(itemId, price); context.onMoviePurchase(itemId, price)}}>
 	        <i className="fa fa-chevron-right"></i> Purchase
 	      </button>}
 	     </Context.Consumer>
@@ -473,41 +529,6 @@ class Card extends React.Component {
 	  }
 	}
 
-
-class Video extends React.Component {
-	  playVideo() {
-	    // You can use the play method as normal on your video ref
-	    this.refs.vidRef.play();
-	  }
-	  
-	  pauseVideo() {
-	    // Pause as well
-	    this.refs.vidRef.pause();
-	  }
-	  
-	  // You can pass your function references to your child components as props (here passing down to the Buttons component)
-	  render() {
-		  var src = this.props.src;
-		return(
-	      <div>
-	        <video ref="vidRef" width="380" height="240" src={src} type="video/mp4" controls></video>
-	        <Buttons playVideo={this.playVideo.bind(this)} pauseVideo={this.pauseVideo.bind(this)} />
-	      </div>
-	    );
-	  }
-	}
-
-	// You can then call the parent play/pause methods from your child component.
-	class Buttons extends React.Component {
-	  render(){
-	    return(
-	      <div>
-	        <button id='playButton' onClick={this.props.playVideo}>Play!</button>
-	        <button id='pauseButton' onClick={this.props.pauseVideo}>Pause!</button>
-	      </div>
-	    );
-	  }
-	}
 // export connect(mapStateToProps)(Player);
 //export default withStyles(s)(Player);
 export default connect(mapStateToProps)(withStyles(s)(Player));

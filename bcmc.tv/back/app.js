@@ -46,13 +46,15 @@ io.on('connection', function(socket) {
         });
     });
     
-    socket.on('drm_update_enckey', function(data){
-        console.log("drm_update_enckey:" + data);
+    socket.on('drm_update_drmtoken', function(data){
+        console.log("drm_update_drmtoken:" + data);
         var request = JSON.parse(data);
-        updateEnckey(gDb, request.drmid, request.enckey).then(function(_result) {
+        
+        console.log("drmtoken:" + request.drmtoken);
+        updateDrmToken(gDb, request.drmid, request.drmtoken).then(function(_result) {
         	var response = {cmd: request.cmd, result : _result} 
-        	console.log("drm_update_enckey_resposne:result=" + JSON.stringify(response));
-        	socket.emit('drm_update_enckey_resposne',JSON.stringify(response));
+        	console.log("drm_update_drmtoken_resposne:result=" + JSON.stringify(response));
+        	socket.emit('drm_update_drmtoken_resposne',JSON.stringify(response));
         }).catch(function(e){console.log(e)});
     });
 
@@ -82,33 +84,31 @@ function eventHandler(err, result) {
 	if(result.event == 'MovieViewTokenRequested') {
 		var Result = result.returnValues;
 		console.log(Result);
-		doDrm(Result.drmprovider, Result.buyer, Result.buyerkey, Result.movieid, Result.drmid);
+		genrateEncryptedDrmToken(Result.drmprovider, Result.buyer, Result.buyerkey, Result.movieid, Result.drmid);
 	}
 }
 
 
-var defEnckey = 'F10DF10DF10DF10DF10DF10DF10DF10D';
+var defDrmToken = '{"org.w3.clearkey": {"clearkeys": {"nrQFDeRLSAKTLifXUIPiZg": "FmY0xnWCPCNaSpRG-tUuTQ"}}}';
 var defMovieid = 1000000000;
 
-function doDrm(drmprovider, buyer, buyerkey, movieid, drmid)
+function genrateEncryptedDrmToken(drmprovider, buyer, buyerkey, movieid, drmid)
 {
-	// Query DRM enckey for the movie id using drmprovider
-	//var enckey = 'F10DF10DF10DF10DF10DF10DF10DF10D';
-	//var testPubKey = "bf1cc3154424dc22191941d9f4f50b063a2b663a2337e5548abea633c1d06eceacf2b81dd326d278cd992d5e03b0df140f2df389ac9a1c2415a220a4a9e8c046";
 	
-	getEcnkey(gDb, drmid).then(enckey => {
+	getDrmTokenFromDb(gDb, drmid).then(drmtoken => {
 		// buyerkey
-		drmsrv.encryptWithPublicKey(buyerkey, enckey).then( drmData => {
+		console.log("drmtoken:" + drmtoken)
+		drmsrv.encryptWithPublicKey(buyerkey, drmtoken).then( encDrmToken => {
 		
-			console.log(drmData);
+			console.log("encDrmToken:" + {encDrmToken});
 		
-			var callData = contract.methods.grantViewToken(buyer, movieid, JSON.stringify(drmData)).encodeABI();
+			var callData = contract.methods.grantViewToken(buyer, movieid, JSON.stringify(encDrmToken)).encodeABI();
 			eth.sendTransaction({from:drmprovider, to: contractAccount, data: callData, gas:4000000});
 		}, err => {
-			console.log(`doDrm:encryptWithPublicKeyError: ${err}`);
+			console.log(`genrateDrmToken:encryptWithPublicKeyError: ${err}`);
 		});
 	}, err => {
-		console.log(`doDrm:getEcnkey:Error: ${err}`);
+		console.log(`genrateDrmToken:getDrmTokenFromDb:Error: ${err}`);
 	});
 }
 
@@ -136,10 +136,10 @@ function dbConnect(url){
 	});
 }
 
-function updateEnckey(db, id, key) {
+function updateDrmToken(db, id, drmtoken) {
 	return new Promise(function(resolve, reject) {
 	  const collection = db.collection(collectionName);
-	  var document = {drmid : id, enckey : key}
+	  var document = {drmid : id, drmtoken : drmtoken}
 	  var query = {drmid : id};
 	  collection.update(query, document, { upsert: true }, function(err, result) {
 			if(!err) {
@@ -152,14 +152,14 @@ function updateEnckey(db, id, key) {
 }
 
 
-function getEcnkey(db, id){
+function getDrmTokenFromDb(db, id){
 	return new Promise(function(resolve, reject) {
 	  const collection = db.collection(collectionName);
 	  query = {drmid : id};
 	  collection.find(query).toArray(function(err, result) {
 	    	if(!err && result.length > 0){
 	    		var entry = result[0];
-	    		resolve(entry.enckey);
+	    		resolve(entry.drmtoken);
 	    	} else {
 	    		reject(err)
 	    	}
@@ -171,17 +171,29 @@ async function initDb() {
 	gDb =  await dbConnect(url);
 	// Insert default key
 	try {
-		console.log("dbtest: updateEnckey");
-		await updateEnckey(gDb, defMovieid, defEnckey, console.log);
-		console.log("dbtest: getEcnkey");
-		encKey = await getEcnkey(gDb, defMovieid); 
-		console.log(encKey);
+		
+		// Query DRM enckey for the movie id using drmprovider
+		var buyerkey = "bf1cc3154424dc22191941d9f4f50b063a2b663a2337e5548abea633c1d06eceacf2b81dd326d278cd992d5e03b0df140f2df389ac9a1c2415a220a4a9e8c046";
+
+		console.log("dbtest: updateDrmToken");
+		await updateDrmToken(gDb, defMovieid, defDrmToken, console.log);
+		console.log("dbtest: getDrmTokenFromDb");
+		getDrmTokenFromDb(gDb, defMovieid).then(drmToken => {
+			console.log("drmToken:" + {drmToken});
+			
+			drmsrv.encryptWithPublicKey(buyerkey, drmToken).then( encDrmToken => {
+				console.log(encDrmToken);
+			}, err => {
+				console.log(`genrateDrmToken:encryptWithPublicKeyError: ${err}`);
+			});
+		},  err => {
+			console.log(`genrateDrmToken:getDrmTokenFromDb:Error: ${err}`)});
 	} catch(e) {
 		console.log(e);
 	}
 }
 
-//dbConnect(url).then(db => {console.log(db); gDb = dbConnect = db; insertDocuments(gDb, drmid, enckey, console.log);});
+//dbConnect(url).then(db => {console.log(db); gDb = dbConnect = db; insertDocuments(gDb, drmid, drmtoken, console.log);});
 initDb();
 
 //=======================================================================================================================

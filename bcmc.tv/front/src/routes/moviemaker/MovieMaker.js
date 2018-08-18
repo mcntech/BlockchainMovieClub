@@ -98,7 +98,7 @@ class MovieMaker extends Component {
 	this.ethlite.sendEthRequest('0x' + serializedTx.toString('hex'));
 	console.log('0x' + serializedTx.toString('hex'));
 	
-	var request = {drmid: this.state.MovieDrmId, enckey: this.state.MovieContentEncKey};
+	var request = {drmid: this.state.MovieDrmId, drmtoken: this.state.MovieContentEncKey};
 	// Register DRM provider
 	this.ethlite.sendDrmUpdateEncKey(JSON.stringify(request));
   }
