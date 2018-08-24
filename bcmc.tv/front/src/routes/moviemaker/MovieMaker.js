@@ -7,13 +7,19 @@ import s from "./MovieMaker.css";
 import Ethlite from '../../ethlite/Api';
 import bcmc from '../../contracts/bcmc.json';
 import coder from 'web3-eth-abi';
+import Popup from "reactjs-popup";
+
 
 const EthereumTx = require('ethereumjs-tx');
 const privateKey = Buffer.from('6cbed15c793ce57650b9877cf6fa156fbef513c4e6134f022a85b1ffdd59b2a1', 'hex'); //test key
 const publicKey = Buffer.from('ffcf8fdee72ac11b5c542428b35eef5769c409f0', 'hex');
 const contractAddress = Buffer.from('cfeb869f69431e42cdb54a4f4f105c19c080a601', 'hex');
 const contentEncKey = 'F20DF10DF10DF10DF10DF10DF10DF10D';
-	
+const testEthNode = 'http://www.bcmc.tv:8090'
+
+const remoteEthNode = 'http://www.bcmc.tv:8090';
+const localEthNode = 'http://localhost:8090';
+			
 const GASS_PRICE='0x01000000000';
 
 <link rel="stylesheet" href="https://video-react.github.io/assets/video-react.css" />
@@ -35,23 +41,30 @@ class MovieMaker extends Component {
     			  MovieDrmId : '123',
     			  MovieDrmProvider: publicKey.toString('hex'),
     			  MovieContentEncKey: contentEncKey.toString('hex'),
-    			  MovieMetaData: 'Enter Metadata'
+    			  MovieMetaData: 'Enter Metadata',
+	    		  EthNode: remoteEthNode,
+	    		  EthState: 'Not Connected',
      };
 
     
     this.handleChange = this.handleChange.bind(this);
     this.handleSubmitMovieMakerAccount = this.handleSubmitMovieMakerAccount.bind(this);
     this.handleSubmitMovieMakerAccountDeferred = this.handleSubmitMovieMakerAccountDeferred.bind(this);
+    this.handleChangeEthNode = this.handleChangeEthNode.bind(this);
+    this.processEthMsg = this.processEthMsg.bind(this);
     
-    this.ethlite = new Ethlite(this, function(obj, event, data)  {
-    	console.log("callback event=:" + event +" data=" + data);
-    	if(event == 'account_nonce') {
-    		console.log("callback: account_nonce" + data);
-    		obj.handleSubmitMovieMakerAccountDeferred(data);
-    	}
-    });
+    this.setEthNode = this.setEthNode.bind(this);
   }
 
+ processEthMsg(obj, event, data)  {
+ 	console.log("callback event=:" + event +" data=" + data);
+ 	if(event == 'account_nonce') {
+ 		console.log("callback: account_nonce" + data);
+ 		obj.handleSubmitMovieMakerAccountDeferred(data);
+ 	} else if (event == 'status') {
+		obj.setState({EthState: data});
+	}
+ }
 
   handleChange (evt) {
 	    this.setState({ [evt.target.name]: evt.target.value });
@@ -61,6 +74,10 @@ class MovieMaker extends Component {
 		event.preventDefault(); 
 		console.log("handleSubmitMovieMakerAccount");
 		this.ethlite.sendEthGetAccount('0x' + publicKey.toString('hex'));
+  }
+  
+  handleChangeEthNode(event) {
+	    this.setState({EthNode: event.target.ethNode});
   }
   
   handleSubmitMovieMakerAccountDeferred(account_nonce) {
@@ -103,14 +120,44 @@ class MovieMaker extends Component {
 	this.ethlite.sendDrmUpdateEncKey(JSON.stringify(request));
   }
 
+  setEthNode(event, server) {
+      event.preventDefault();
+      var _ethNode = null;
+      if(server == 'local') {
+      	_ethNode = localEthNode;
+      } else if(server == 'remote') {
+      	_ethNode = remoteEthNode;
+      } else if(server == 'custom') {
+      	_ethNode = localEthNode;
+      }
+      if(_ethNode != null) {
+      	this.setState({EthState: "Connecting..."});
+      	this.setState({EthNode: _ethNode})        
+      	this.ethlite = new Ethlite(this, _ethNode, this.processEthMsg);
+      }
+  }
+  
+  componentDidMount()
+  {
+  	this.setState({EthState: "Connecting..."});
+  	this.ethlite = new Ethlite(this, this.state.EthNode, this.processEthMsg);
+  }
   render() {
 
 	return (
 		<div className={s.root}>
 		  <div className={s.container}>
-		      <h1 align="center" className="Advertiser-title">Movie Registration</h1>
-		      <h2 align="center">(Demo Screen)</h2>
-
+		      <h2 align="center" className="Advertiser-title">Movie Registration ({this.state.EthState})</h2>
+	         <Popup trigger={<div> {this.state.EthNode}... </div>} position="bottom center"
+	        	 closeOnDocumentClick
+	        	 mouseLeaveDelay={300}
+	         >
+	           <div>
+                  <button className={s.button} onClick={e => this.setEthNode(e, "remote")}> Remote </button>
+                  <button className={s.button} onClick={e => this.setEthNode(e, "local")}> Local </button>
+                  <button className={s.button} onClick={e => this.setEthNode(e, "custom")} > Custom </button>
+	           </div>
+	         </Popup>
 		  
 		    <form onSubmit={this.handleSubmitMovieMakerAccount}>
 		      <div className={s.formGroup}>
@@ -124,6 +171,18 @@ class MovieMaker extends Component {
 					         onChange={this.handleChange} />
 					 </label>
 			  </div>
+			  <div className={s.formGroup}>
+			    <label className={s.label} htmlFor="account">
+			    Ethereum Node:
+			    <input 
+			      className={s.input}   
+			      type="text" 
+			      id="ethnode" 
+			      name="ethnode" 
+				  value={this.state.EthNode} 
+			      onChange={this.handleChangeEthNode} />
+			    </label>
+		    </div>				  
               <br/>
               <div className={s.formGroup}>
                 <label className={s.label} htmlFor="url">

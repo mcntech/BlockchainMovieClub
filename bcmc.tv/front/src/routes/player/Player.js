@@ -11,12 +11,16 @@ import bcmc from '../../contracts/bcmc.json';
 import coder from 'web3-eth-abi';
 import {connect} from 'react-redux'
 import ReactPlayer from 'react-player'
+import Popup from "reactjs-popup";
 
 const EthereumTx = require('ethereumjs-tx');
 const privateKey = Buffer.from('4f3edf983ac636a65a842ce7c78d9aa706d3b113bce9c46f30d7d21715b23b1d', 'hex'); //test key
 const account = Buffer.from('90f8bf6a479f320ead074411a4b0e7944ea8c9c1', 'hex');
 const contractAddress = Buffer.from('cfeb869f69431e42cdb54a4f4f105c19c080a601', 'hex');
-		
+
+const remoteEthNode = 'http://www.bcmc.tv:8090';
+const localEthNode = 'http://localhost:8090';	
+	
 //<link rel="stylesheet" href="https://video-react.github.io/assets/video-react.css" />
 import "../../../node_modules/video-react/dist/video-react.css";
 
@@ -52,17 +56,22 @@ class Player extends Component {
     		//playerSource: "https://media.w3.org/2010/05/sintel/trailer_hd.mp4",
     		playerSource: null,//"https://media.axprod.net/TestVectors/v7-MultiDRM-SingleKey/Manifest_ClearKey.mpd",
     		protData: null,//{ "org.w3.clearkey": {"clearkeys": { "nrQFDeRLSAKTLifXUIPiZg": "FmY0xnWCPCNaSpRG-tUuTQ"}}},
-    		playing: false //true
+    		playing: false, //true
+    		EthNode: remoteEthNode,
+    		EthState: 'Not Connected',
+    	    showMenu: false,
+    	    customEthNode : 'http://localhost:8090'
 	    };
     	this.movieReqIndex = 0;
 	    this.handleSubmitMovieUpdate = this.handleSubmitMovieUpdate.bind(this);
 	    this.handleChangePlayerAccount = this.handleChangePlayerAccount.bind(this);
 	    this.handleSubmitPlayerAccount = this.handleSubmitPlayerAccount.bind(this);
-
+	    
 	    this.onMovieSelection = this.onMovieSelection.bind(this);
 	    
 	    this.onMoviePurchase = this.onMoviePurchase.bind(this);
 	    this.handleSubmitPurchaseDeferred = this.handleSubmitPurchaseDeferred.bind(this);
+	    
 	    this.getMovieDrm = this.getMovieDrm.bind(this);
 	    
 	    this.getTotalMovies = this.getTotalMovies.bind(this);
@@ -70,110 +79,143 @@ class Player extends Component {
 	    this.updateMovieList = this.updateMovieList.bind(this);
 	    this.startMovie = this.startMovie.bind(this); 
 	    this.stopMovie = this.stopMovie.bind(this);
+	    this.processEthMsg = this.processEthMsg.bind(this);
+	    
+	    this.setEthNode = this.setEthNode.bind(this);
 	    
 	    this.deferredEthTransaction = null;
-	    this.ethlite = new Ethlite(this, function(obj, event, data)  {
-	    	console.log("callback event=:" + event +" data=" + data);
-	    	if(event == 'account_nonce') {
-	    		//obj.handleSubmitPlayerAccountDeferred(data);
-	    		if(obj.deferredEthTransaction)
-	    			obj.deferredEthTransaction(data);
-	    	}
-	       	if (event == 'eth_call_response') {
-	    		var resp = JSON.parse(data);
-	    		var result = resp.result;
-	    		var cmd = resp.cmd;
-	    		if(cmd == 'getMovieData') {
-		    		try{
+	    this.deferredEthCall = null;
+    }
 
-		    			var fnId = findAbiIdForFunction(bcmc.abi, "getMovieData");
-		    			//var movieId = obj.state.movieReqIndex;
-		    			var movieId = obj.movieReqIndex;
-		    			var outputs = coder.decodeParameters(bcmc.abi[fnId]["outputs"], result);
-			    		var movieUrl = outputs[0];
-			    		var movieThumb = outputs[1];
-			    		var movieTitle = outputs[2];
-			    		var movieDescript = outputs[3];
-			    		
-			    		var moviePrice = outputs[4];
-			    		var movieDuration = outputs[5];
-			    		var movieDrmType = outputs[6];
-			    		var movieDrmStatus = outputs[7];
-		    						    		
-			    		/// Obtain thumb url from relative or absolute path
-			    		if (movieThumb.indexOf('http://') === 0 || movieThumb.indexOf('https://') === 0) {
-			    		    //do nothing
-			    		} else {
-			    			movieThumb =  movieUrl.substr(0,movieUrl.lastIndexOf('/') + 1).concat(movieThumb);
-			    		}
-			    		
-			    		/// Create movie object
-			       		var movieData = {
-			       			"category": "Drama",
-			                "title": movieTitle,
-			                "text": movieDescript,
-			                "image":  movieThumb,
-			                "url"  : movieUrl,
-			                "price" : moviePrice,
-			                "duration" : movieDuration,
-			                "drmtype" : movieDrmType,
-			                "movieId":movieId,
-			                "drmstatus" : movieDrmStatus
-		                }
-			       		console.log('movieData:'); console.log(movieData);
-			       		/// Dispatch movie to store
-			       		const {dispatch} = obj.props;
-				    	dispatch(AddItem(movieId, movieData));
-		    		} catch (err) {
-		    			console.log(err);
+	
+	processEthMsg(obj, event, data)  {
+    	console.log("callback event=:" + event +" data=" + data);
+    	if(event == 'account_nonce') {
+    		//obj.handleSubmitPlayerAccountDeferred(data);
+    		if(data == 0) {
+    			obj.setState({EthState:"Account access failed"});	
+    		} else {
+    			if(obj.deferredEthTransaction)
+    				obj.deferredEthTransaction(data);
+    		}
+    	}
+       	if (event == 'eth_call_response') {
+    		var resp = JSON.parse(data);
+    		var result = resp.result;
+    		var cmd = resp.cmd;
+    		if(cmd == 'getMovieData') {
+	    		try{
+
+	    			var fnId = findAbiIdForFunction(bcmc.abi, "getMovieData");
+	    			//var movieId = obj.state.movieReqIndex;
+	    			var movieId = obj.movieReqIndex;
+	    			var outputs = coder.decodeParameters(bcmc.abi[fnId]["outputs"], result);
+		    		var movieUrl = outputs[0];
+		    		var movieThumb = outputs[1];
+		    		var movieTitle = outputs[2];
+		    		var movieDescript = outputs[3];
+		    		
+		    		var moviePrice = outputs[4];
+		    		var movieDuration = outputs[5];
+		    		var movieDrmType = outputs[6];
+		    		var movieDrmStatus = outputs[7];
+	    						    		
+		    		/// Obtain thumb url from relative or absolute path
+		    		if (movieThumb.indexOf('http://') === 0 || movieThumb.indexOf('https://') === 0) {
+		    		    //do nothing
+		    		} else {
+		    			movieThumb =  movieUrl.substr(0,movieUrl.lastIndexOf('/') + 1).concat(movieThumb);
 		    		}
-		       		//obj.setState({movieReqIndex:movieId+1}); 
-		    		obj.movieReqIndex = movieId+1;
-	    		
-	    		} else if (cmd == 'getMovieDrm'){
-		    		try{
-		    			var fnId = findAbiIdForFunction(bcmc.abi, "getMovieDrm");
-		    			var outputs = coder.decodeParameters(bcmc.abi[fnId]["outputs"], result);
-			    		var _movieid = outputs[0];
-			    		var _cgms = outputs[1];
-			    		var _drmToken = outputs[2];
-			    		console.log(`movieid:${_movieid} cgms:${_cgms} drm:${_drmToken} privateKey: ${privateKey.toString('hex')}`);
-			    		decryptWithPrivateKey(privateKey, JSON.parse(_drmToken)).then( _drmDecToken => {
-				    		var item = findItemForMovieId(obj.props.items, _movieid);
-				    		if(item != null) {
-				    			console.log('_drmDecToken');console.log(_drmDecToken);
-				    			var drmDecToken = JSON.parse(_drmDecToken);
-				    			obj.startMovie(item.url, drmDecToken);
-				    		}
-			    		});
-		    		} catch (err) {
-		    			console.log(err);
-		    		}
-	    		} else if (cmd == 'totalMovies'){
-	    			var id = findAbiIdForFunction(bcmc.abi, "totalMovies");
-	    			var outputs = coder.decodeParameters(bcmc.abi[id]["outputs"], result);
-	    			obj.setState({totalMovies: parseInt(outputs[0], 16)});
+		    		
+		    		/// Create movie object
+		       		var movieData = {
+		       			"category": "Drama",
+		                "title": movieTitle,
+		                "text": movieDescript,
+		                "image":  movieThumb,
+		                "url"  : movieUrl,
+		                "price" : moviePrice,
+		                "duration" : movieDuration,
+		                "drmtype" : movieDrmType,
+		                "movieId":movieId,
+		                "drmstatus" : movieDrmStatus
+	                }
+		       		console.log('movieData:'); console.log(movieData);
+		       		/// Dispatch movie to store
+		       		const {dispatch} = obj.props;
+			    	dispatch(AddItem(movieId, movieData));
+	    		} catch (err) {
+	    			console.log(err);
 	    		}
-	    	}
-	    });
-    }
+	       		//obj.setState({movieReqIndex:movieId+1}); 
+	    		obj.movieReqIndex = movieId+1;
+    		
+    		} else if (cmd == 'getMovieDrm'){
+	    		try{
+	    			var fnId = findAbiIdForFunction(bcmc.abi, "getMovieDrm");
+	    			var outputs = coder.decodeParameters(bcmc.abi[fnId]["outputs"], result);
+		    		var _movieid = outputs[0];
+		    		var _cgms = outputs[1];
+		    		var _drmToken = outputs[2];
+		    		console.log(`movieid:${_movieid} cgms:${_cgms} drm:${_drmToken} privateKey: ${privateKey.toString('hex')}`);
+		    		decryptWithPrivateKey(privateKey, JSON.parse(_drmToken)).then( _drmDecToken => {
+			    		var item = findItemForMovieId(obj.props.items, _movieid);
+			    		if(item != null) {
+			    			console.log('_drmDecToken');console.log(_drmDecToken);
+			    			var drmDecToken = JSON.parse(_drmDecToken);
+			    			obj.startMovie(item.url, drmDecToken);
+			    		}
+		    		});
+	    		} catch (err) {
+	    			console.log(err);
+	    		}
+    		} else if (cmd == 'totalMovies'){
+    			var id = findAbiIdForFunction(bcmc.abi, "totalMovies");
+    			var outputs = coder.decodeParameters(bcmc.abi[id]["outputs"], result);
+    			obj.setState({totalMovies: parseInt(outputs[0], 16)});
+    			
+    			if(this.deferredEthCall != null){
+    				this.deferredEthCall();
+    				this.deferredEthCall = null;
+    			} 
+    		} 
 
+    		
+    	} else if (event == 'status') {
+			obj.setState({EthState: data});
+    	}
+    }
     componentWillMount() {
-	     const {dispatch,items} = this.props;
-	     
-	     dispatch(itemsIsLoading(true));
-	     this.getTotalMovies();
-	     
-	    dispatch(itemsIsLoading(false));
-	    console.dir(items);
+    	const {dispatch,items} = this.props;
     }
 
-
+    componentDidMount()
+    {
+    	this.setState({EthState: "Connecting..."});
+    	this.ethlite = new Ethlite(this, this.state.EthNode, this.processEthMsg);
+	}
+    
+    
+    setEthNode(event, server) {
+        event.preventDefault();
+        var _ethNode = null;
+        if(server == 'local') {
+        	_ethNode = localEthNode;
+        } else if(server == 'remote') {
+        	_ethNode = remoteEthNode;
+        } else if(server == 'custom') {
+        	_ethNode = localEthNode;
+        }
+        if(_ethNode != null) {
+        	this.setState({EthState: "Connecting..."});
+        	this.setState({EthNode: _ethNode})        
+        	this.ethlite = new Ethlite(this, _ethNode, this.processEthMsg);
+        }
+    }
 
   handleChangePlayerAccount(event) {
     this.setState({playerAccount: event.target.playerAccount});
   }
-
   
   stopMovie()
   {
@@ -271,14 +313,12 @@ class Player extends Component {
 	  dispatch(initialItems([]));
 	  
 	  this.getTotalMovies()
-	  this.updateMovieList();
+	  this.deferredEthCall = this.updateMovieList;
   }
 
   handleSubmitPlayerAccount(event) {
 		event.preventDefault(); 
-		
 		this.ethlite.sendEthGetAccount('0x' + this.state.playerAccount.toString('hex'));
-		
 		this.deferredEthTransaction = this.handleSubmitPlayerAccountDeferred;
   }
   
@@ -382,9 +422,22 @@ class Player extends Component {
 	    <div className={s.container}>
 		  <div className="Player">
 		      <header className="Player-header">
-			      <h1 className="Player-title">Demo Player</h1>
+			      <h2 className="Player-title">Demo Player ({this.state.EthState})</h2>
+			      
 	          </header>
-		   	  <div>
+	           	  
+	         <Popup trigger={<div> {this.state.EthNode}... </div>} position="bottom center"
+	        	 closeOnDocumentClick
+	        	 mouseLeaveDelay={300}
+	         >
+	           <div>
+                  <button className={s.button} onClick={e => this.setEthNode(e, "remote")}> Remote </button>
+                  <button className={s.button} onClick={e => this.setEthNode(e, "local")}> Local </button>
+                  <button className={s.button} onClick={e => this.setEthNode(e, "custom")} > Custom </button>
+	           </div>
+	         </Popup>
+	         
+	          <div>
 				   <ReactPlayer     
 				   		ref={this.ref}
 				   		width='100%'
@@ -401,7 +454,7 @@ class Player extends Component {
 			     
 				 <div className={s.formGroup}>
 				    <label className={s.label} htmlFor="account">
-				    Player Account:
+				    Ethereum Account:
 				    <input 
 				      className={s.input}   
 				      type="text" 
@@ -409,7 +462,6 @@ class Player extends Component {
 				      name="account" 
 					  value={this.state.playerAccount} 
 				      onChange={this.handleChangePlayerAccount} />
-				   <br/>(Ethereum Account)
 				    </label>
 				</div>
 			  <button className={s.button} type="submit">
@@ -504,30 +556,30 @@ class CardHeader extends React.Component {
 	}
 
 
-	class CardBody extends React.Component {
-	  render() {
-		  return (
-	      <div className="card-body">
-	        <h2>{this.props.details.title}</h2>
-	        <p className="body-content"> {this.props.details.text}</p>
-	        <p className="body-content"> Duration: {this.props.details.duration} Price:{this.props.details.price} DRM:{this.props.details.drmtype}  DRM Status:{this.props.details.drmstatus}</p>
-	        <ButtonSelect itemId={this.props.details.movieId}/>
-	        <ButtonPurchase itemId={this.props.details.movieId} price={this.props.details.price}/>
-	      </div>
-	    )
-	  }
-	}
+class CardBody extends React.Component {
+  render() {
+	  return (
+      <div className="card-body">
+        <h2>{this.props.details.title}</h2>
+        <p className="body-content"> {this.props.details.text}</p>
+        <p className="body-content"> Duration: {this.props.details.duration} Price:{this.props.details.price} DRM:{this.props.details.drmtype}  DRM Status:{this.props.details.drmstatus}</p>
+        <ButtonSelect itemId={this.props.details.movieId}/>
+        <ButtonPurchase itemId={this.props.details.movieId} price={this.props.details.price}/>
+      </div>
+    )
+  }
+}
 
 class Card extends React.Component {
-	  render() {
-		return (
-	      <article className="card">
-	        <CardHeader details={this.props.details} />
-	        <CardBody details={this.props.details}/>
-	      </article>
-	    )
-	  }
-	}
+  render() {
+	return (
+      <article className="card">
+        <CardHeader details={this.props.details} />
+        <CardBody details={this.props.details}/>
+      </article>
+    )
+  }
+}
 
 // export connect(mapStateToProps)(Player);
 //export default withStyles(s)(Player);

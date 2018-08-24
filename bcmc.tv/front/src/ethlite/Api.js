@@ -5,14 +5,20 @@ import openSocket from 'socket.io-client';
 	   
 class Ethlite
 {
-	constructor(_clientObj, _cb) {
+	constructor(_clientObj, server, _cb) {
 		this.clientObj = _clientObj;
 		this.cb = _cb;
-		this.socket = openSocket('http://localhost:8090');
-
+		this.socket = openSocket(server);
+		console.log("openSocket:" + server); 
+		
 	  this.socket.on('general_event', data => { 
 		  console.log("general_event" + data); 
 		  this.cb(this.clientObj, 'general_event', data)
+	  });
+	  
+	  this.socket.on('status', data => { 
+		  console.log("status" + data); 
+		  this.cb(this.clientObj, 'status', data)
 	  });
 	  
 	  this.socket.on('account_nonce', data => { 

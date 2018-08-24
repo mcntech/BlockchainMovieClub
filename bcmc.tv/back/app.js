@@ -7,8 +7,8 @@ var drmsrv = require('./drmsrv');
 const MongoClient = require('mongodb').MongoClient;
 
 
-var eth = new Eth('ws://127.0.0.1:8545');
-//var eth = new Eth('http://127.0.0.1:8545');
+//var eth = new Eth('ws://127.0.0.1:8545');
+var eth = new Eth('http://127.0.0.1:8545');
 eth.getAccounts(console.log);
 
 io.on('connection', function(socket) {
@@ -20,10 +20,13 @@ io.on('connection', function(socket) {
     
     socket.on('eth_get_account', function(account){
         console.log("eth_get_account:" + account);
-        eth.getTransactionCount(account).then(function(nonce){
-        	console.log("eth_get_account:nonce=" + nonce);
-        	socket.emit('account_nonce',nonce);
-        });
+	        eth.getTransactionCount(account).then(function(nonce){
+	        	console.log("eth_get_account:nonce=" + nonce);
+	        	socket.emit('account_nonce',nonce);
+	        }).catch(function(e) {
+	        	console.log("eth_get_account:nonce failed");
+	        	socket.emit('account_nonce', 0);
+	        });
     });
     
     socket.on('eth_call', function(data){
@@ -57,7 +60,7 @@ io.on('connection', function(socket) {
         	socket.emit('drm_update_drmtoken_resposne',JSON.stringify(response));
         }).catch(function(e){console.log(e)});
     });
-
+    socket.emit('status',"ready");
 });
 
 const contractAccount = '0xcfeb869f69431e42cdb54a4f4f105c19c080a601';

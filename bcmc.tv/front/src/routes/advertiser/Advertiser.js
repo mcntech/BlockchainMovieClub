@@ -8,11 +8,16 @@ import s from "./Advertiser.css";
 import Ethlite from '../../ethlite/Api';
 import bcmc from '../../contracts/bcmc.json';
 import coder from 'web3-eth-abi';
+import Popup from "reactjs-popup";
 
 const EthereumTx = require('ethereumjs-tx');
 const privateKey = Buffer.from('a26ecf489e39d27a26cc2b1ba7cd8a6ef0256b3e8038fecd07f2a7d0d8983c82', 'hex'); //test key
 const publicKey = Buffer.from('47160d1b68c4c21974c9fb96428d8213f48418c9', 'hex');
 const contractAddress = Buffer.from('cfeb869f69431e42cdb54a4f4f105c19c080a601', 'hex');
+const testEthNode = 'http://www.bcmc.tv:8090';
+
+const remoteEthNode = 'http://www.bcmc.tv:8090';
+const localEthNode = 'http://localhost:8090';
 		
 <link rel="stylesheet" href="https://video-react.github.io/assets/video-react.css" />
 
@@ -23,19 +28,29 @@ class Advertiser extends Component {
     		AdvertiserAccount: 'Select Advertiser acount', 
     		SponsorMovie: 'Select Movie Address',
     		SponsorAmount: '10000',
-    		AdvertiserSource: "https://media.w3.org/2010/05/sintel/trailer_hd.mp4"};
+    		AdvertiserSource: "https://media.w3.org/2010/05/sintel/trailer_hd.mp4",
+    		EthNode: remoteEthNode,
+    		EthState: 'Not Connected',
+    };
 
     this.handleChangeMovieAddr = this.handleChangeMovieAddr.bind(this);
     this.handleSubmitMovieAddr = this.handleSubmitMovieAddr.bind(this);
     this.handleChangeAdvertiserAccount = this.handleChangeAdvertiserAccount.bind(this);
     this.handleSubmitAdvertiserAccount = this.handleSubmitAdvertiserAccount.bind(this);
+    this.handleChangeEthNode = this.handleChangeEthNode.bind(this);
+    this.processEthMsg = this.processEthMsg.bind(this);
     
-    this.ethlite = new Ethlite(this, function(obj, event, data)  {
-    	if(event == 'account_nonce')
-    		obj.handleSubmitAdvertiserAccountDeferred(data);
-    });
+    this.setEthNode = this.setEthNode.bind(this);
+    
   }
 
+ processEthMsg(obj, event, data)  {
+	 	if(event == 'account_nonce') {
+	 		obj.handleSubmitAdvertiserAccountDeferred(data);
+	 	} else if (event == 'status') {
+			obj.setState({EthState: data});
+    	}
+  }
   handleChangeAdvertiserAccount(event) {
     this.setState({AdvertiserAccount: event.target.AdvertiserAccount});
   }
@@ -44,6 +59,10 @@ class Advertiser extends Component {
 
   }
 
+  handleChangeEthNode(event) {
+	    this.setState({EthNode: event.target.ethNode});
+  }
+  
   handleSubmitMovieAddr(event) {
 	  
 		var movieAddr = Buffer.from('86972749aedd94711edc884a6a0c4bb78abc9612', 'hex');
@@ -90,13 +109,44 @@ class Advertiser extends Component {
 	console.log('0x' + serializedTx.toString('hex'));
   }
 
+  setEthNode(event, server) {
+      event.preventDefault();
+      var _ethNode = null;
+      if(server == 'local') {
+      	_ethNode = localEthNode;
+      } else if(server == 'remote') {
+      	_ethNode = remoteEthNode;
+      } else if(server == 'custom') {
+      	_ethNode = localEthNode;
+      }
+      if(_ethNode != null) {
+      	this.setState({EthState: "Connecting..."});
+      	this.setState({EthNode: _ethNode})        
+      	this.ethlite = new Ethlite(this, _ethNode, this.processEthMsg);
+      }
+  }
+  
+  componentDidMount()
+  {
+  	this.setState({EthState: "Connecting..."});
+  	this.ethlite = new Ethlite(this, this.state.EthNode, this.processEthMsg);
+  }
+  
   render() {
 	  return(
 		<div className={s.root}>
 		  <div className={s.container}>
-		      <h1 className="Advertiser-title">Advertiser Registration</h1>
-		      <h2>(Demo Screen)</h2>
-		  
+		      <h2 className="Advertiser-title">Advertiser Registration({this.state.EthState})</h2>
+	         <Popup trigger={<div> {this.state.EthNode}... </div>} position="bottom center"
+	        	 closeOnDocumentClick
+	        	 mouseLeaveDelay={300}
+	         >
+	           <div>
+                  <button className={s.button} onClick={e => this.setEthNode(e, "remote")}> Remote </button>
+                  <button className={s.button} onClick={e => this.setEthNode(e, "local")}> Local </button>
+                  <button className={s.button} onClick={e => this.setEthNode(e, "custom")} > Custom </button>
+	           </div>
+	         </Popup>		  
 		    <form onSubmit={this.handleSubmitMovieMakerAccount}>
 		      <div className={s.formGroup}>
 					<label className={s.label} htmlFor="account">
@@ -109,6 +159,18 @@ class Advertiser extends Component {
 					     <br/>(Ethereum Account)
 					 </label>
 			  </div>
+			  <div className={s.formGroup}>
+			    <label className={s.label} htmlFor="account">
+			    Ethereum Node:
+			    <input 
+			      className={s.input}   
+			      type="text" 
+			      id="ethnode" 
+			      name="ethnode" 
+				  value={this.state.EthNode} 
+			      onChange={this.handleChangeEthNode} />
+			    </label>
+		    </div>			  
             <div className={s.formGroup}>
 	              <label className={s.label} htmlFor="url">
 	                 Ad Location:
