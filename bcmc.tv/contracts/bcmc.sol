@@ -308,12 +308,16 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
 	    uint      funding_end_time;
 	    uint      movie_start_time;
         uint      movie;
-	    uint[]    adverts;
+	    address[]  adverts;
     }
 
 
 	/*** Storage ***/
 	
+    address public owner;
+    // Values 0-10,000 map to 0%-100%
+    uint256 public ownerCut;
+
     mapping(address => Player) players;
     //mapping(address => Movie) movies;
     mapping(address => Advert) adverts;
@@ -345,10 +349,6 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     mapping (address => mapping (uint256 => ViewToken)) public viewRightGrants;
 
 
-    address public owner;
-    // Values 0-10,000 map to 0%-100%
-    uint256 public ownerCut;
-
     constructor() public {
        owner = msg.sender;
        ownerCut = 500;          // 5%
@@ -376,7 +376,7 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
         emit OwnershipTransferred(prevOwner, _newOwner);
     }
     
-    function setOwnerCut(uint256 _ownerCut) onlyOwner{
+    function setOwnerCut(uint256 _ownerCut) public onlyOwner{
         ownerCut = _ownerCut;
     }
      
@@ -567,17 +567,17 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     	_url = movies[_id].url;
     }
     
-    function getNextAdvertUrl(uint _id) public constant returns (string _url) {
+    function getNextAdvertUrl(address _id) public constant returns (string _url) {
         //TODO
-        //Player storage player = players[msg.sender];
-        //Sponsor storage sponsor = sponsors[_id];
-        //
-        //if(sponsor.adverts.length == 0) revert();
+        Player storage player = players[msg.sender];
+        Sponsor storage sponsor = sponsors[_id];
         
-       //uint indx_advert = (player.indx_advert + 1) % sponsor.adverts.length;
-        //address advert_address= sponsor.adverts[indx_advert];
-        //Advert storage advert = adverts[advert_address];
-        //_url = advert.url;
+        if(sponsor.adverts.length == 0) revert();
+        
+        uint indx_advert = (player.indx_advert + 1) % sponsor.adverts.length;
+        address advert_address= sponsor.adverts[indx_advert];
+        Advert storage advert = adverts[advert_address];
+        _url = advert.url;
     }
 
     function setRating(uint _id, uint8 _rating) public  {
@@ -757,13 +757,13 @@ contract bcmc is ERC165,  ERC721 , ERC721Receiver /*ERC173, ERC721Metadata, ERC7
     }
     
     // ERC721Metadata
-    function name() external view returns (string _name)
+    function name() external pure returns (string _name)
     {
         _name = bcmc_name;
     }
     
     /// @dev Required for ERC-721 compliance.
-    function symbol() external view returns (string _symbol)
+    function symbol() external pure returns (string _symbol)
     {
         _symbol = bcmc_symbol;    
     }
