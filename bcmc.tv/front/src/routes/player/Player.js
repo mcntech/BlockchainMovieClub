@@ -104,7 +104,7 @@ class Player extends Component {
     console.log(`callback event=:${event} data=${data}`);
     if (event == 'account_nonce') {
       // obj.handleSubmitPlayerAccountDeferred(data);
-      if (data == 0) {
+      if (data == -1) {
         obj.setState({ EthState: 'Account access failed' });
       } else if (obj.deferredEthTransaction) obj.deferredEthTransaction(data);
     }
