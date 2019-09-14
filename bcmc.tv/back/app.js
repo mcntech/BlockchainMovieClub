@@ -10,6 +10,8 @@ const MongoClient = require('mongodb').MongoClient;
 //var eth = new Eth('ws://127.0.0.1:8545');
 var eth = new Eth('http://127.0.0.1:8545');
 eth.getAccounts(console.log);
+const contractAccount = '0x0000000000000000000000000000000000000100';
+var contract = new eth.Contract(bcmc.abi, contractAccount);
 
 io.on('connection', function(socket) {
     socket.on('eth_rawtransaction', function(data){
@@ -63,8 +65,6 @@ io.on('connection', function(socket) {
     socket.emit('status',"ready");
 });
 
-const contractAccount = '0xcfeb869f69431e42cdb54a4f4f105c19c080a601';
-var contract = new eth.Contract(bcmc.abi, contractAccount);
 
 //console.log(contract);
 var _fromBlock = 0;
@@ -83,8 +83,11 @@ function pollEvents(){
 
 
 function eventHandler(err, result) {
-	console.log("event callback:");console.log(result);
-	if(result.event == 'MovieViewTokenRequested') {
+	console.log("event callback:");
+	console.log(result);
+	if(result == null) {
+		console.log(err)
+	} else if(result.event == 'MovieViewTokenRequested') {
 		var Result = result.returnValues;
 		console.log(Result);
 		genrateEncryptedDrmToken(Result.drmprovider, Result.buyer, Result.buyerkey, Result.movieid, Result.drmid);
