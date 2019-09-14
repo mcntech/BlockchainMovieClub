@@ -27,12 +27,11 @@ class Header extends React.Component {
               srcSet={`${logoUrl2x} 2x`}
               width="38"
               height="38"
-              alt="MCN"
+              alt="BCMC"
             />
-            <span className={s.brandTxt}>MCN Technologies Inc.</span>
+            <span className={s.brandTxt}>Blockchain Movie Club.</span>
           </Link>
           <div className={s.banner}>
-            <h1 className={s.bannerTitle}>BlockChain Movie Club</h1>
             <p className={s.bannerDesc}> A Platform for Distributing or Watching Premium Movies</p>
           </div>
         </div>

@@ -163,36 +163,6 @@ class MovieMaker extends Component {
           <h2 align="center" className="Advertiser-title">
             Movie Registration ({this.state.EthState})
           </h2>
-          <Popup
-            trigger={<div> {this.state.EthNode}... </div>}
-            position="bottom center"
-            closeOnDocumentClick
-            mouseLeaveDelay={300}
-          >
-            <div>
-              <button
-                className={s.button}
-                onClick={e => this.setEthNode(e, 'remote')}
-              >
-                {' '}
-                Remote{' '}
-              </button>
-              <button
-                className={s.button}
-                onClick={e => this.setEthNode(e, 'local')}
-              >
-                {' '}
-                Local{' '}
-              </button>
-              <button
-                className={s.button}
-                onClick={e => this.setEthNode(e, 'custom')}
-              >
-                {' '}
-                Custom{' '}
-              </button>
-            </div>
-          </Popup>
 
           <form onSubmit={this.handleSubmitMovieMakerAccount}>
             <div className={s.formGroup}>
@@ -205,19 +175,6 @@ class MovieMaker extends Component {
                   name="MovieMakerAccount"
                   value={this.state.MovieMakerAccount}
                   onChange={this.handleChange}
-                />
-              </label>
-            </div>
-            <div className={s.formGroup}>
-              <label className={s.label} htmlFor="account">
-                Ethereum Node:
-                <input
-                  className={s.input}
-                  type="text"
-                  id="ethnode"
-                  name="ethnode"
-                  value={this.state.EthNode}
-                  onChange={this.handleChangeEthNode}
                 />
               </label>
             </div>

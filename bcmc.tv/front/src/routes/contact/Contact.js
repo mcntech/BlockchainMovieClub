@@ -22,7 +22,7 @@ class Contact extends React.Component {
       <div className={s.root}>
         <div className={s.container}>
           <h1>{this.props.title}</h1>
-          <p>email:bcmc@mcntech.com</p>
+          <p>email:support@zeeth.io</p>
         </div>
       </div>
     );

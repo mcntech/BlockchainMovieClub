@@ -453,37 +453,6 @@ class Player extends Component {
                 </h2>
               </header>
 
-              <Popup
-                trigger={<div> {this.state.EthNode}... </div>}
-                position="bottom center"
-                closeOnDocumentClick
-                mouseLeaveDelay={300}
-              >
-                <div>
-                  <button
-                    className={s.button}
-                    onClick={e => this.setEthNode(e, 'remote')}
-                  >
-                    {' '}
-                    Remote{' '}
-                  </button>
-                  <button
-                    className={s.button}
-                    onClick={e => this.setEthNode(e, 'local')}
-                  >
-                    {' '}
-                    Local{' '}
-                  </button>
-                  <button
-                    className={s.button}
-                    onClick={e => this.setEthNode(e, 'custom')}
-                  >
-                    {' '}
-                    Custom{' '}
-                  </button>
-                </div>
-              </Popup>
-
               <div>
                 <ReactPlayer
                   ref={this.ref}
