@@ -20,13 +20,46 @@ const publicKey = Buffer.from(
   'hex',
 );
 const contractAddress = Buffer.from(bcmc_config.contractAddress, 'hex');
-const contentEncKey = 'F20DF10DF10DF10DF10DF10DF10DF10D';
+//const contentEncKey = 'F20DF10DF10DF10DF10DF10DF10DF10D';
+const contentEncKey = '{ "org.w3.clearkey": {"clearkeys": { "nrQFDeRLSAKTLifXUIPiZg": "FmY0xnWCPCNaSpRG-tUuTQ"}}}'
 const testEthNode = 'http://rpc.zeeth.io';
 
 const remoteEthNode = 'http://rpc.zeeth.io';
 const localEthNode = 'http://localhost:8090';
 
 const GASS_PRICE = '0x01000000000';
+const DemoClipNonDrm = {
+  MovieTitle: 'Big Buck Bunny',
+  MovieDescription:
+    'Big Buck Bunny tells the story of a giant rabbit with a heart bigger than himself',
+  MovieStorageUrl:
+    'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+  MovieCoverArtUrl: 'images/BigBuckBunny.jpg',
+  MoviePricePerView: '4',
+  MovieDuration: '120',
+  MovieDrmType: '0',
+  MovieDrmId: '0',
+  MovieDrmProvider: publicKey.toString('hex'),
+  MovieContentEncKey: contentEncKey.toString('hex'),
+  MovieMetaData: 'Enter Metadata',
+};
+
+const DemoClipDrm = {
+  MovieTitle: 'Big Buck Bunny Premium',
+  MovieDescription:
+    'Big Buck Bunny tells the story of a giant rabbit with a heart bigger than himself',
+  MovieStorageUrl:
+    "https://media.axprod.net/TestVectors/v7-MultiDRM-SingleKey/Manifest_ClearKey.mpd",
+  MovieCoverArtUrl: 'images/BigBuckBunny.jpg',
+  MoviePricePerView: '4',
+  MovieDuration: '120',
+  MovieDrmType: '1',
+  MovieDrmId: '123',
+  MovieDrmProvider: publicKey.toString('hex'),
+  MovieContentEncKey: contentEncKey.toString('hex'),
+  MovieMetaData: 'Enter Metadata',
+};
+
 
 <link
   rel="stylesheet"
@@ -53,6 +86,8 @@ class MovieMaker extends Component {
       MovieMetaData: 'Enter Metadata',
       EthNode: remoteEthNode,
       EthState: 'Not Connected',
+      DemoMovie: DemoClipNonDrm,
+      DemoMovieType: "DRM",
     };
 
     this.handleChange = this.handleChange.bind(this);
@@ -66,6 +101,7 @@ class MovieMaker extends Component {
     this.processEthMsg = this.processEthMsg.bind(this);
 
     this.setEthNode = this.setEthNode.bind(this);
+    this.setDemoMovie = this.setDemoMovie.bind(this);
   }
 
   processEthMsg(obj, event, data) {
@@ -152,6 +188,21 @@ class MovieMaker extends Component {
     }
   }
 
+  setDemoMovie(event, movie) {
+    event.preventDefault();
+    let _movie = null;
+    let _movieType = null;
+    if (movie == 'drm') {
+      _movie = DemoClipDrm;
+      _movieType = "DRM"
+    } else if (movie == 'nondrm') {
+      _movie = DemoClipNonDrm;
+      _movieType = "No DRM"
+    } 
+    if (_movie != null) {
+      this.setState({ ..._movie, DemoMovieType: _movieType, });
+    }
+  }
   componentDidMount() {
     this.setState({ EthState: 'Connecting...' });
     this.ethlite = new Ethlite(this, this.state.EthNode, this.processEthMsg);
@@ -163,7 +214,15 @@ class MovieMaker extends Component {
           <h2 align="center" className="Advertiser-title">
             Movie Registration ({this.state.EthState})
           </h2>
-
+          <Popup trigger={<div> Template {this.state.DemoMovieType} </div>} position="bottom center"
+	        	 closeOnDocumentClick
+	        	 mouseLeaveDelay={300}
+	         >
+	           <div>
+                  <button className={s.button} onClick={e => this.setDemoMovie(e, "nondrm")}> No DRM </button>
+                  <button className={s.button} onClick={e => this.setDemoMovie(e, "drm")}> DRM  </button>
+	           </div>
+	         </Popup>
           <form onSubmit={this.handleSubmitMovieMakerAccount}>
             <div className={s.formGroup}>
               <label className={s.label} htmlFor="account">

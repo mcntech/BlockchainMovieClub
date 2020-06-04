@@ -1,5 +1,4 @@
 import React, { Component } from 'react';
-import { Player as VideoPlayer } from 'video-react';
 
 import withStyles from 'isomorphic-style-loader/lib/withStyles';
 import s from './Player.css';
